@@ -1,0 +1,228 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Otopark Demo — {{ gun_etiketi }}</title>
+  <link rel="stylesheet" href="/static/stil.css">
+</head>
+<body>
+<header>
+  <div class="cubuk">
+    <h1>☕ Kafe Otopark Takibi <span class="etiket">DEMO</span></h1>
+    <nav class="ust-nav">
+      <a href="/" class="aktif">Özet</a>
+      <a href="/kutuphane">Kütüphane</a>
+      <a href="/tarama">Kare tarama</a>
+    </nav>
+    <div class="durum">
+      <span class="nokta {{ 'yesil' if durum == 'çalışıyor' else 'kirmizi' }}"></span>
+      <span id="durum-metni">{{ durum }}</span>
+    </div>
+  </div>
+</header>
+
+<main>
+  {% if hata %}<div class="uyari kirmizi-kutu">{{ hata }}</div>{% endif %}
+  {% if model_hatasi %}<div class="uyari kirmizi-kutu">{{ model_hatasi }}</div>{% endif %}
+  {% if kaynak_hatasi %}<div class="uyari kirmizi-kutu">{{ kaynak_hatasi }}</div>{% endif %}
+
+  <!-- ÖZET SAYILAR -->
+  <section class="sayilar">
+    <div class="sayi-kutu">
+      <div class="sayi" id="sayi-arac">{{ ozet.arac }}</div>
+      <div class="etiket-metin">araç geldi</div>
+      <div class="alt">{{ gun_etiketi }}</div>
+    </div>
+    <div class="sayi-kutu">
+      <div class="sayi" id="sayi-insan">{{ ozet.insan }}</div>
+      <div class="etiket-metin">kişi geçti</div>
+      <div class="alt">{{ gun_etiketi }}</div>
+    </div>
+    <div class="sayi-kutu">
+      <div class="sayi" id="sayi-canli">{{ canli_arac }}</div>
+      <div class="etiket-metin">şu an görünen araç</div>
+      <div class="alt"><span id="sayi-canli-insan">{{ canli_insan }}</span> kişi</div>
+    </div>
+    <div class="sayi-kutu {{ 'vurgu' if ozet.yakinlik else '' }}">
+      <div class="sayi" id="sayi-yakinlik">{{ ozet.yakinlik }}</div>
+      <div class="etiket-metin">çok yakın park</div>
+      <div class="alt">eşik: {{ esik }} m</div>
+    </div>
+  </section>
+
+  <div class="izgara">
+    <!-- CANLI GÖRÜNTÜ -->
+    <section class="kart">
+      <h2>Canlı görüntü</h2>
+      <div class="cizim-alani">
+        <img id="onizleme" src="/onizleme.jpg" alt="otopark görüntüsü">
+        <canvas id="tuval"></canvas>
+      </div>
+      <p class="not" id="tuval-not">Turuncu kutu = araç, yeşil = kişi, kırmızı = eşikten yakın araç.</p>
+    </section>
+
+    <!-- AYARLAR -->
+    <section class="kart">
+      <h2>Ayarlar</h2>
+
+      <h3>1. Mesafe eşiği <span class="rozet {{ 'yesil' if olcek_hazir else 'gri' }}">
+        {{ 'ölçek hazır' if olcek_hazir else 'önce ölçek gerekli' }}</span></h3>
+      <form method="post" action="/ayarlar/mesafe" class="satir-form">
+        <label>Araçlar arası en az mesafe
+          <input name="esik_m" value="{{ esik }}" size="6"> metre
+        </label>
+        <button class="dugme">Kaydet</button>
+      </form>
+      <p class="not">Bu değeri siz belirlersiniz. İki araç arası mesafe bunun altına
+        düşerse kayıt açılır ve kutular kırmızıya döner.</p>
+
+      <h3>2. Ölçek (metre/piksel)</h3>
+      {% if olcek_hazir %}
+        <p class="not">Ölçek ayarlı — referans uzunluğu: {{ referans_metre }} m.
+          Kamera açısı değişirse yeniden ayarlayın.</p>
+      {% else %}
+        <p class="not kirmizi-metin">Ölçek ayarlanmadan mesafe hesaplanamaz —
+          sistem yaklaşık bir sayı uydurmaz, mesafe takibi sessizce kapalı kalır.</p>
+      {% endif %}
+      <form method="post" action="/ayarlar/kalibrasyon" id="kalibrasyon-form" class="dikey-form">
+        <button type="button" class="dugme ikincil" id="cizim-baslat">Referans çizgisi çiz</button>
+        <span class="not">Görüntüde uzunluğunu bildiğiniz bir mesafenin iki ucuna tıklayın
+          (örn. bir park yerinin genişliği).</span>
+        <label>Bu çizginin gerçek uzunluğu
+          <input name="metre" id="metre" value="{{ referans_metre or '2,5' }}" size="6"> metre
+        </label>
+        <input type="hidden" name="cizgi" id="cizgi">
+        <button class="dugme" id="kalibrasyon-kaydet" disabled>Ölçeği Kaydet</button>
+      </form>
+
+      <h3>3. Görüntü kaynağı</h3>
+      <p class="not">Şu an: <code>{{ kaynak }}</code><br>
+        Değiştirmek için proje klasöründeki <b>.env</b> dosyasındaki <b>KAYNAK</b>
+        satırını düzenleyip sistemi yeniden başlatın.</p>
+    </section>
+  </div>
+
+  <!-- RENK DAĞILIMI -->
+  <section class="kart">
+    <h2>Araç renkleri — {{ gun_etiketi }}</h2>
+    {% if renkler %}
+      <div class="renk-cubugu">
+        {% for r in renkler %}
+        <div class="renk-parca" style="width: {{ r.yuzde }}%; background: {{ r.kod }}"
+             title="{{ r.ad }}: {{ r.adet }} araç"></div>
+        {% endfor %}
+      </div>
+      <div class="renk-liste">
+        {% for r in renkler %}
+        <span class="renk-oge"><i style="background: {{ r.kod }}"></i>{{ r.ad }}
+          <b>{{ r.adet }}</b></span>
+        {% endfor %}
+      </div>
+    {% else %}
+      <p class="bos">Bugün henüz araç kaydedilmedi.</p>
+    {% endif %}
+  </section>
+
+  <!-- ÇOK YAKIN PARK -->
+  {% if yakinliklar %}
+  <section class="kart">
+    <h2>Çok yakın park uyarıları</h2>
+    <table>
+      <tr><th>Saat</th><th>Ölçülen</th><th>Eşik</th><th>Görüntü</th></tr>
+      {% for y in yakinliklar %}
+      <tr>
+        <td>{{ y.saat }}</td>
+        <td class="kirmizi-metin"><b>{{ y.mesafe }} m</b></td>
+        <td>{{ y.esik }} m</td>
+        <td>{% if y.foto %}<a href="/gorsel/{{ y.foto }}" target="_blank">
+          <img class="kucuk" src="/gorsel/{{ y.foto }}" alt="kanıt"></a>{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </table>
+  </section>
+  {% endif %}
+
+  <!-- GELEN ARAÇLAR -->
+  <section class="kart">
+    <h2>Gelen araçlar</h2>
+    {% if araclar %}
+    <div class="arac-izgara">
+      {% for a in araclar %}
+      <div class="arac-kart">
+        {% if a.foto %}<img src="/gorsel/{{ a.foto }}" alt="araç">
+        {% else %}<div class="foto-yok">görüntü yok</div>{% endif %}
+        <div class="arac-alt">
+          <span class="renk-nokta" style="background: {{ a.kod }}"></span>
+          {{ a.renk }} · {{ a.saat }}
+        </div>
+      </div>
+      {% endfor %}
+    </div>
+    {% else %}
+    <p class="bos">Henüz araç kaydedilmedi. Kamera veya video kaynağı bağlıysa
+      araçlar göründükçe burada birikecek.</p>
+    {% endif %}
+  </section>
+
+  <!-- GÜN SEÇİMİ VE RAPOR -->
+  <section class="kart">
+    <h2>Gün seçimi ve rapor</h2>
+    <form method="get" action="/" class="satir-form">
+      <select name="gun">
+        <option value="{{ '' }}">Bugün ({{ zaman_bugun_etiketi | default(gun_etiketi) }})</option>
+        {% for g in gunler %}
+        <option value="{{ g.gun }}" {% if g.gun == gun %}selected{% endif %}>{{ g.etiket }}</option>
+        {% endfor %}
+      </select>
+      <button class="dugme ikincil">Göster</button>
+      <a class="dugme ikincil" href="/rapor.csv?gun={{ gun }}">CSV indir</a>
+    </form>
+    <form method="post" action="/sifirla" class="satir-form"
+          onsubmit="return confirm('{{ gun_etiketi }} gününün demo kayıtları silinsin mi?')">
+      <input type="hidden" name="gun" value="{{ gun }}">
+      <button class="dugme tehlike kucuk">Bu günün kayıtlarını sıfırla</button>
+      <span class="not">Demo tekrarı için; yalnız seçili günü siler.</span>
+    </form>
+  </section>
+
+  <p class="dipnot">
+    Sayım ilkesi: her araç/kişi <b>bir kez</b> sayılır (takip numarasıyla).
+    Araç görüntüden çıkıp tekrar girerse yeni numara alır ve yeniden sayılabilir —
+    bu, kamera tabanlı sayımın bilinen sınırıdır. Mesafe, tek ölçekli yaklaşık
+    hesaptır; küçük ve düz bir otoparkta güvenilir, geniş açı/derinlik farkı
+    olan sahnelerde yanılabilir.
+  </p>
+</main>
+
+<script>
+// Canlı görüntü: 1 sn'de bir yenile
+setInterval(function () {
+  fetch("/onizleme.jpg", { cache: "no-store" }).then(function (y) {
+    if (y.status === 204) return null;
+    return y.blob();
+  }).then(function (veri) {
+    if (!veri) return;
+    var img = document.getElementById("onizleme");
+    var eski = img.dataset.url;
+    img.src = URL.createObjectURL(veri);
+    if (eski) URL.revokeObjectURL(eski);
+    img.dataset.url = img.src;
+  }).catch(function () {});
+}, 1000);
+
+// Sayılar: 2 sn'de bir güncelle (sayfa yenilenmeden)
+setInterval(function () {
+  fetch("/canli?gun={{ gun }}").then(function (y) { return y.json(); }).then(function (v) {
+    document.getElementById("sayi-arac").textContent = v.arac;
+    document.getElementById("sayi-insan").textContent = v.insan;
+    document.getElementById("sayi-canli").textContent = v.canli_arac;
+    document.getElementById("sayi-canli-insan").textContent = v.canli_insan;
+    document.getElementById("sayi-yakinlik").textContent = v.yakinlik;
+    document.getElementById("durum-metni").textContent = v.durum;
+  }).catch(function () {});
+}, 2000);
+</script>
+<script src="/static/kalibrasyon.js"></script>
+</body>
+</html>

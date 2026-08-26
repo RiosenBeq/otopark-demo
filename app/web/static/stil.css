@@ -1,0 +1,111 @@
+/* Otopark Demo — sade ve okunaklı arayüz */
+* { box-sizing: border-box; }
+body { margin: 0; font-family: -apple-system, "Segoe UI", Roboto, sans-serif;
+       background: #fafaf9; color: #1c1917; }
+
+header { background: #1c1917; color: #fafaf9; }
+.cubuk { max-width: 1080px; margin: 0 auto; padding: 14px 16px;
+         display: flex; align-items: center; justify-content: space-between; gap: 16px; }
+.cubuk h1 { margin: 0; font-size: 1.1rem; font-weight: 600; }
+.etiket { background: #b45309; color: #fff; font-size: 0.65rem; padding: 2px 6px;
+          border-radius: 4px; vertical-align: middle; letter-spacing: 0.05em; }
+.durum { font-size: 0.85rem; color: #d6d3d1; display: flex; align-items: center; gap: 6px; }
+.nokta { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.nokta.yesil { background: #22c55e; }
+.nokta.kirmizi { background: #ef4444; }
+
+main { max-width: 1080px; margin: 20px auto; padding: 0 16px; display: grid; gap: 16px; }
+
+.sayilar { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 12px; }
+.sayi-kutu { background: #fff; border: 1px solid #e7e5e4; border-radius: 10px;
+             padding: 16px 18px; }
+.sayi-kutu.vurgu { border-color: #fca5a5; background: #fef2f2; }
+.sayi { font-size: 2.2rem; font-weight: 700; line-height: 1; }
+.etiket-metin { color: #57534e; font-size: 0.9rem; margin-top: 4px; }
+.alt { color: #a8a29e; font-size: 0.78rem; margin-top: 2px; }
+
+.izgara { display: grid; grid-template-columns: 1.3fr 1fr; gap: 16px; }
+@media (max-width: 860px) { .izgara { grid-template-columns: 1fr; } }
+
+.kart { background: #fff; border: 1px solid #e7e5e4; border-radius: 10px; padding: 16px 20px; }
+.kart h2 { margin: 0 0 12px; font-size: 1.02rem; border-bottom: 1px solid #e7e5e4;
+           padding-bottom: 8px; }
+.kart h3 { margin: 16px 0 6px; font-size: 0.92rem; }
+.kart h3:first-of-type { margin-top: 4px; }
+
+.cizim-alani { position: relative; }
+.cizim-alani img { width: 100%; display: block; border-radius: 8px; background: #292524;
+                   min-height: 160px; }
+.cizim-alani canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.cizim-alani canvas.aktif { cursor: crosshair; }
+
+table { border-collapse: collapse; width: 100%; }
+th, td { text-align: left; padding: 6px 10px 6px 0; font-size: 0.9rem;
+         border-bottom: 1px solid #f5f5f4; }
+th { color: #78716c; font-weight: 500; }
+
+.not { color: #78716c; font-size: 0.83rem; margin: 6px 0; }
+.bos { color: #78716c; font-style: italic; }
+.kirmizi-metin { color: #b91c1c; }
+.dipnot { color: #78716c; font-size: 0.8rem; line-height: 1.5; margin: 0 0 24px; }
+.uyari { padding: 10px 14px; border-radius: 8px; font-size: 0.9rem; }
+.kirmizi-kutu { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c; }
+
+.dugme { border: 0; border-radius: 6px; cursor: pointer; background: #1d4ed8; color: #fff;
+         padding: 8px 14px; font-size: 0.88rem; text-decoration: none; display: inline-block; }
+.dugme:hover { background: #1e40af; }
+.dugme.ikincil { background: #fff; color: #1c1917; border: 1px solid #d6d3d1; }
+.dugme.tehlike { background: #b91c1c; }
+.dugme.kucuk { padding: 5px 10px; font-size: 0.8rem; }
+.dugme:disabled { opacity: 0.45; cursor: not-allowed; }
+
+input, select { padding: 6px 9px; border: 1px solid #d6d3d1; border-radius: 6px;
+                font-size: 0.88rem; font-family: inherit; }
+.satir-form { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; margin: 8px 0; }
+.dikey-form { display: grid; gap: 8px; justify-items: start; }
+label { font-size: 0.88rem; }
+
+.rozet { font-size: 0.72rem; padding: 2px 8px; border-radius: 10px; font-weight: 600; }
+.rozet.yesil { background: #dcfce7; color: #15803d; }
+.rozet.gri { background: #e7e5e4; color: #57534e; }
+
+.renk-cubugu { display: flex; height: 26px; border-radius: 6px; overflow: hidden;
+               border: 1px solid #e7e5e4; }
+.renk-parca { height: 100%; }
+.renk-liste { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 10px; font-size: 0.85rem; }
+.renk-oge i { display: inline-block; width: 11px; height: 11px; border-radius: 3px;
+              border: 1px solid #d6d3d1; margin-right: 5px; vertical-align: -1px; }
+
+.arac-izgara { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+               gap: 10px; }
+.arac-kart { border: 1px solid #e7e5e4; border-radius: 8px; overflow: hidden; }
+.arac-kart img { width: 100%; height: 78px; object-fit: cover; display: block; background: #292524; }
+.foto-yok { height: 78px; display: flex; align-items: center; justify-content: center;
+            color: #a8a29e; font-size: 0.75rem; background: #f5f5f4; }
+.arac-alt { padding: 5px 8px; font-size: 0.78rem; color: #57534e; }
+.renk-nokta { display: inline-block; width: 9px; height: 9px; border-radius: 50%;
+              border: 1px solid #d6d3d1; margin-right: 4px; }
+img.kucuk { height: 38px; border-radius: 4px; }
+code { background: #f5f5f4; padding: 1px 5px; border-radius: 4px; font-size: 0.82rem; }
+
+/* üst gezinme + kütüphane/tarama */
+.ust-nav { display: flex; gap: 4px; }
+.ust-nav a { color: #d6d3d1; text-decoration: none; padding: 6px 12px; border-radius: 6px;
+             font-size: 0.9rem; }
+.ust-nav a:hover { background: #292524; }
+.ust-nav a.aktif { background: #44403c; color: #fff; }
+.foto-izgara { display: grid; grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
+               gap: 10px; margin: 10px 0; }
+.foto-kart { border: 1px solid #e7e5e4; border-radius: 8px; overflow: hidden; text-align: center; }
+.foto-kart img { width: 100%; height: 100px; object-fit: cover; display: block; }
+.tarama-gorsel { width: 100%; border-radius: 8px; margin: 8px 0; }
+.dugme.sade { background: none; color: #78716c; border: 0; text-decoration: underline;
+              cursor: pointer; }
+.dikey-form { display: grid; gap: 10px; justify-items: start; }
+.yesil-metin { color: #15803d; }
+.turuncu-metin { color: #c2410c; }
+.dipnot { color: #78716c; font-size: 0.8rem; line-height: 1.55; margin: 0 0 24px; }
+.uyari { background: #fef2f2; border: 1px solid #fecaca; color: #b91c1c;
+         padding: 10px 14px; border-radius: 8px; font-size: 0.88rem; }
+.ince { font-weight: 400; color: #a8a29e; font-size: 0.9rem; }
+input[type=file] { border: 1px dashed #d6d3d1; background: #fafaf9; padding: 10px; width: 100%; }
