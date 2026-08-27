@@ -25,12 +25,16 @@ import supervision as sv  # noqa: E402
 from app import renk as renk_modulu  # noqa: E402
 from app import veritabani, zaman  # noqa: E402
 from app.ayarlar import Ayarlar  # noqa: E402
-from app.mesafe import Arac, yakin_ciftler  # noqa: E402
+from app.mesafe import Arac, hesaplayici_kur, yakin_ciftler  # noqa: E402
 from app.tespit import ModelHatasi, Tespitci  # noqa: E402
 
 # Bir takip bu kadar kez görülmeden sayılmaz: tek karelik yanlış tespitler
 # günlük sayacı şişirmesin.
 _SAYMA_ESIGI = 3
+
+# Kayıp bir izin hatırlanma süresi (saniye). Araç kısa süre örtülüp geri
+# gelince AYNI takip numarasını alsın ve ikinci kez sayılmasın diye.
+_IZ_HAFIZASI_SN = 15.0
 
 _RENKLER = {"arac": (60, 140, 255), "insan": (80, 200, 80)}
 
@@ -55,9 +59,15 @@ class Analiz:
         # BAŞLATMAZ. Eşik, tespit güveniyle (0,35) aynı seviyede olursa uzak
         # ve küçük araçlar tespit edilse bile hiç takip edilmez ve sayaca
         # girmez; bu yüzden belirgin şekilde altında tutulur.
+        #
+        # DİKKAT: supervision, lost_track_buffer'ı kare olarak SAYMAZ:
+        #     max_time_lost = int(frame_rate / 30 * lost_track_buffer)
+        # Kardeş projede (LAFFOGATO) çift sayımın kök nedeni buydu — 45 gibi
+        # düz bir sayı 3 fps'te yalnızca 4 kare = 1,3 saniye hafıza demekti.
+        # İz hafızası bu yüzden SANİYE cinsinden ifade edilir.
         self._izleyici = sv.ByteTrack(
             track_activation_threshold=0.20,
-            lost_track_buffer=45,
+            lost_track_buffer=int(_IZ_HAFIZASI_SN * 30),
             frame_rate=max(int(ayarlar.kare_fps), 1),
         )
         self._gorulme: dict[tuple[str, int], int] = {}
@@ -277,14 +287,18 @@ class Analiz:
         self, baglanti, araclar: list[dict], ayarlar: dict[str, str], kare
     ) -> list[tuple[int, int, float]]:
         try:
-            olcek = float(ayarlar.get("olcek_m_px", "0") or 0)
             esik = float(ayarlar.get("mesafe_esigi_m", "1.5") or 1.5)
             bekleme = float(ayarlar.get("yakinlik_bekleme_s", "60") or 60)
         except ValueError:
             return []
 
+        # Seçili kalibrasyona göre hesaplayıcı: basit (çizgi) ya da hassas
+        # (4 nokta homografi). Hiçbiri ayarlı değilse .hazir False olur ve
+        # yakin_ciftler boş döner — mesafe takibi sessizce kapalı kalır.
+        genislik, yukseklik = self._kare_boyutu
+        hesap = hesaplayici_kur(ayarlar, genislik, yukseklik)
         çiftler = yakin_ciftler(
-            [Arac(takip_id=a["takip_id"], kutu=a["kutu"]) for a in araclar], olcek, esik
+            [Arac(takip_id=a["takip_id"], kutu=a["kutu"]) for a in araclar], hesap, esik
         )
         if not çiftler:
             return []

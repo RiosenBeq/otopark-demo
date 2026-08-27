@@ -15,7 +15,7 @@ import time
 import webbrowser
 from pathlib import Path
 
-BASLIK = "Otopark Demo"
+BASLIK = "NextGen Detector — Otopark"
 PORT = 8090
 ADRES = f"http://127.0.0.1:{PORT}"
 

@@ -1,8 +1,8 @@
-# Otopark Demo — kafe otoparkı takibi
+# NextGen Detector — otopark takibi
 
-Kafenin otoparkına bakan bir kameradan **kaç araç geldiğini**, **araçların
+Otoparka bakan bir kameradan **kaç araç geldiğini**, **araçların
 renklerini**, **günlük yaya sayısını** ve **senin belirlediğin mesafeden daha
-yakın park eden araçları** çıkaran deneme uygulaması.
+yakın park eden araçları** çıkaran uygulama.
 
 Fabrika sisteminden (DALSAN-ISG) tamamen ayrıdır: kendi klasörü, kendi
 veritabanı, kendi portu (8090). Birini kapatmak diğerini etkilemez.
@@ -28,7 +28,7 @@ KAYNAK=veri/ornek-otopark.mp4  # kayıtlı video (deneme)
 | **Özet sayılar** | Bugün kaç araç geldi, kaç kişi geçti, şu an kaç araç görünüyor |
 | **Canlı görüntü** | Tespit kutularıyla birlikte 1 sn'de bir yenilenen görüntü |
 | **Mesafe eşiği** | Araçlar arası en az mesafeyi **sen** yazarsın; altına düşen çiftler kaydedilir |
-| **Ölçek** | Görüntüde uzunluğunu bildiğin bir mesafeyi çizip metre olarak girersin |
+| **Mesafe kalibrasyonu** | İki yöntem: **Basit** — uzunluğunu bildiğin tek çizgi; **Hassas (4 nokta)** — zeminde ölçülerini bildiğin bir dikdörtgenin köşelerini işaretlersin, mesafeler derinlik farkında da doğru çıkar |
 | **Araç renkleri** | Günün renk dağılımı (beyaz, siyah, kırmızı…) |
 | **Kütüphane** | Kendi nesnelerini fotoğrafla tanıtırsın (örn. "servis aracımız") |
 | **Kare tarama** | Fotoğraf ya da video yükleyip tararsın (videodan kareler otomatik alınır); canlı sayaçlara dokunmaz |
@@ -37,9 +37,10 @@ KAYNAK=veri/ornek-otopark.mp4  # kayıtlı video (deneme)
 
 - **Sayım:** her araç/kişi bir kez sayılır (takip numarasıyla). Görüntüden çıkıp
   tekrar giren araç yeni numara alır ve yeniden sayılabilir.
-- **Mesafe:** tek ölçekli yaklaşık hesaptır. Küçük ve düz bir otoparkta güvenilir;
-  çok derinlikli, geniş açılı sahnelerde yanılır. Ölçek ayarlanmadan mesafe
-  takibi **kapalı kalır** — sistem yaklaşık sayı uydurmaz.
+- **Mesafe (Basit yöntem):** tek ölçekli yaklaşık hesaptır; derinlikli sahnede
+  yanılır. Böyle bir sahnede **Hassas (4 nokta)** yöntemini kullanın — zemine
+  yansıtılan mesafeler uzak/yakın farkında da doğrudur. Hiçbir kalibrasyon
+  ayarlanmadan mesafe takibi **kapalı kalır** — sistem yaklaşık sayı uydurmaz.
 - **Renk:** gölgede ve gece isabet düşer; karar verilemezse "belirsiz" yazar.
 - **Nesne tanıtma:** model eğitimi değildir; renk + desen parmak izi eşleştirmesidir.
   Logosu/deseni belirgin nesnelerde iyi, düz beyaz nesnelerde zayıf çalışır.
@@ -71,3 +72,26 @@ veriler kaybolmaz. Ayrıntılı kılavuz: fabrika projesindeki `NASIL-CALISIR.md
 .venv/bin/python -m pytest -q
 .venv/bin/ruff check .
 ```
+
+## Yönetici şifresi
+
+Panel varsayılan olarak **şifresizdir** — aynı bilgisayarda açıldığı için
+demo kullanımında giriş istenmez.
+
+Şifre koymak isterseniz proje klasöründeki `.env` dosyasında şu satırı doldurun
+ve uygulamayı yeniden başlatın:
+
+```
+PANEL_SIFRESI=buraya-sifrenizi-yazin
+```
+
+- Şifre doluysa panel açılışta şifre sorar; boş bırakılırsa sormaz.
+- Şifreyi unutursanız `.env` dosyasından silmeniz yeterlidir.
+- `.env` dosyası GitHub'a gönderilmez (`.gitignore` içindedir) — şifreniz
+  yalnızca kendi bilgisayarınızda durur.
+
+## Marka
+
+Bu ürün **NextGen Detector** ailesindendir. Logo: `app/web/static/logo.svg`.
+Kardeş projeler: **DALSAN-ISG** (fabrika iş güvenliği) ve **LAFFOGATO**
+(kafe bar sayacı) — her biri kendi klasöründe, kendi portunda bağımsız çalışır.

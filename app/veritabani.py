@@ -22,6 +22,13 @@ VARSAYILAN_AYARLAR = {
     # Referans çizgisinin görüntüdeki normalize uçları ve gerçek uzunluğu
     "referans_cizgi": "",
     "referans_metre": "",
+    # Mesafe kalibrasyon yöntemi: "cizgi" (basit) | "homografi" (hassas 4 nokta)
+    "kalibrasyon_modu": "cizgi",
+    # 4 nokta kalibrasyonu: 3x3 matris, köşeler (normalize) ve gerçek ölçüler
+    "homografi": "",
+    "homografi_noktalari": "",
+    "homografi_en_m": "",
+    "homografi_boy_m": "",
 }
 
 

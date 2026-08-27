@@ -3,13 +3,14 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Otopark Demo — {{ gun_etiketi }}</title>
+  <title>NextGen Detector — {{ gun_etiketi }}</title>
+  <link rel="icon" type="image/svg+xml" href="/static/logo.svg">
   <link rel="stylesheet" href="/static/stil.css?v=8">
 </head>
 <body>
 <header>
   <div class="cubuk">
-    <h1>☕ Kafe Otopark Takibi <span class="etiket">DEMO</span></h1>
+    <h1><img src="/static/logo.svg" alt="" class="logo"> NextGen <b>Detector</b> <span class="ince">otopark takibi</span> <span class="etiket">DEMO</span></h1>
     <nav class="ust-nav">
       <a href="/" class="aktif">Özet</a>
       <a href="/kutuphane">Kütüphane</a>
@@ -54,7 +55,7 @@
 
   <!-- KURULUM KILAVUZU -->
   {% set kamera_ok = durum == 'çalışıyor' %}
-  {% set kurulum_tamam = kamera_ok and olcek_hazir %}
+  {% set kurulum_tamam = kamera_ok and mesafe_hazir %}
   <details class="kart" {% if not kurulum_tamam %}open{% endif %}>
     <summary>Kurulum kılavuzu — sistemi 3 adımda hazırla</summary>
     <div class="kilavuz">
@@ -66,14 +67,16 @@
         </span>
         <span class="rozet {{ 'yesil' if kamera_ok else 'gri' }}">{{ 'bağlı' if kamera_ok else 'bekliyor' }}</span>
       </div>
-      <div class="kilavuz-adim {{ 'tamam' if olcek_hazir else '' }}">
+      <div class="kilavuz-adim {{ 'tamam' if mesafe_hazir else '' }}">
         <span class="kilavuz-no"><span>2</span></span>
-        <span class="kilavuz-metin"><b>Referans çizgisi çiz (ölçek)</b>
-          <small>Görüntüde uzunluğunu bildiğin bir mesafeyi çizip metre olarak yaz —
-          mesafeler ancak böyle metreye çevrilir. Ayarlar'daki "Ölçek" başlığının
+        <span class="kilavuz-metin"><b>Mesafeyi kalibre et</b>
+          <small>Kamera pikseli bilir, metreyi bilmez. İki yol var: <b>Basit</b> —
+          uzunluğunu bildiğin tek bir çizgi çiz; <b>Hassas (4 nokta)</b> — zeminde
+          ölçülerini bildiğin bir dikdörtgenin köşelerini işaretle, mesafeler uzak
+          ve yakın araçlarda da doğru çıkar. "Mesafe kalibrasyonu" başlığının
           yanındaki <b>?</b> işaretinde adım adım anlatım var.</small>
         </span>
-        <span class="rozet {{ 'yesil' if olcek_hazir else 'gri' }}">{{ 'hazır' if olcek_hazir else 'bekliyor' }}</span>
+        <span class="rozet {{ 'yesil' if mesafe_hazir else 'gri' }}">{{ 'hazır' if mesafe_hazir else 'bekliyor' }}</span>
       </div>
       <div class="kilavuz-adim tamam">
         <span class="kilavuz-no"><span>3</span></span>
@@ -96,11 +99,24 @@
   <div class="izgara">
     <!-- CANLI GÖRÜNTÜ -->
     <section class="kart">
-      <h2>Canlı görüntü</h2>
+      <h2>Canlı görüntü
+        <span class="ipucu" tabindex="0">?<span class="balon"><b>Bu görüntüde ne var?</b>
+          Kameradan gelen görüntü, tespit kutularıyla birlikte saniyede bir yenilenir.
+          <b>Turuncu kutu</b> = araç, <b>yeşil</b> = kişi, <b>kırmızı</b> = birbirine
+          eşikten yakın park etmiş araç çifti. Kalibrasyon çizimleri de bu görüntünün
+          üzerine yapılır. Görüntü gelmiyorsa "Görüntü kaynağı" bölümünden
+          bağlantıyı sınayın.
+        </span></span></h2>
       <div class="cizim-alani">
         <img id="onizleme" src="/onizleme.jpg" alt="otopark görüntüsü">
         <canvas id="tuval"></canvas>
         <div class="kilavuz-yazi" id="cizim-kilavuz"></div>
+      </div>
+      <div class="cizim-araclar" id="cizim-araclar"
+           title="Çizim sırasında: Geri Al son noktayı siler, İptal (ya da Esc) çizimi temizler">
+        <span class="cizim-durum" id="cizim-durum"></span>
+        <button type="button" class="dugme ikincil kucuk" id="cizim-geri" disabled>↩ Geri Al</button>
+        <button type="button" class="dugme sade kucuk" id="cizim-iptal">İptal (Esc)</button>
       </div>
       <p class="not" id="tuval-not">Turuncu kutu = araç, yeşil = kişi, kırmızı = eşikten yakın araç.</p>
     </section>
@@ -116,8 +132,8 @@
           <ul><li>Eşiği siz belirlersiniz; küçük bir otoparkta 1,5–2,5 m iyi bir başlangıçtır.</li>
           <li>Önce ölçek (2. adım) çizilmiş olmalı — yoksa sistem metre hesaplayamaz.</li></ul>
         </span></span>
-        <span class="rozet {{ 'yesil' if olcek_hazir else 'gri' }}">
-        {{ 'ölçek hazır' if olcek_hazir else 'önce ölçek gerekli' }}</span></h3>
+        <span class="rozet {{ 'yesil' if mesafe_hazir else 'gri' }}">
+        {{ 'kalibrasyon hazır' if mesafe_hazir else 'önce kalibrasyon gerekli' }}</span></h3>
       <form method="post" action="/ayarlar/mesafe" class="dikey-form">
         <label style="max-width: 460px">Araçlar arası en az mesafe
           <span class="kaydirici">
@@ -135,40 +151,102 @@
         Yeni "çok yakın park" uyarısında sesli bildirim çal
       </label>
 
-      <h3>2. Ölçek (metre/piksel)
-        <span class="ipucu" tabindex="0">?<span class="balon"><b>Ölçek neden gerekli?</b>
-          Kamera pikseli bilir, metreyi bilmez. Uzunluğunu bildiğiniz bir mesafeyi
-          bir kez gösterirseniz sistem piksel→metre çevirisini öğrenir.
-          <ol><li>"Referans çizgisi çiz"e basın.</li>
-          <li>Görüntüde uzunluğunu bildiğiniz bir mesafenin iki ucuna tıklayın
-            (park yeri genişliği ≈ 2,5 m, araç boyu ≈ 4,5 m).</li>
-          <li>Fare gezerken çizgi canlı görünür; uçları sürükleyip düzeltebilirsiniz.</li>
-          <li>Gerçek uzunluğu metre yazıp "Ölçeği Kaydet"e basın.</li></ol>
-          İpucu: çizgiyi yere yakın, düz bir hatta çizin. Yanlışsa Esc ile iptal edin.
+      <h3>2. Mesafe kalibrasyonu
+        <span class="ipucu" tabindex="0">?<span class="balon"><b>Kalibrasyon neden gerekli, hangi yöntemi seçmeliyim?</b>
+          Kamera pikseli bilir, metreyi bilmez; mesafeleri metreye çevirmek için
+          görüntüde gerçek bir ölçü göstermeniz gerekir. İki yöntem var:
+          <ul><li><b>Basit (tek çizgi):</b> uzunluğunu bildiğiniz bir mesafenin iki
+            ucuna tıklarsınız (park yeri genişliği ≈ 2,5 m). Küçük ve düz otoparkta
+            yeterlidir; kameraya çok yakın ile çok uzak araçlar kıyaslanınca yanılır.</li>
+          <li><b>Hassas (4 nokta):</b> zeminde ölçülerini bildiğiniz bir DİKDÖRTGENİN
+            4 köşesine tıklarsınız (örn. tek park yeri: en 2,5 m × boy 5 m). Sistem
+            görüntü→zemin dönüşümünü hesaplar; mesafeler <b>derinlik farkında da doğru</b>
+            çıkar. Fabrika sistemindeki yöntemin aynısıdır — önerilen budur.</li></ul>
+          En son hangi yöntemi kaydederseniz o aktif olur; aşağıdaki rozetlerden
+          tek tıkla geçiş yapabilirsiniz.
         </span></span></h3>
-      {% if olcek_hazir %}
-        <p class="not">Ölçek ayarlı — referans uzunluğu: {{ referans_metre }} m;
-          görüntüde <b>1 metre ≈ {{ metre_piksel }} piksel</b>.
-          Kamera açısı değişirse yeniden ayarlayın.</p>
-      {% else %}
-        <p class="not kirmizi-metin">Ölçek ayarlanmadan mesafe hesaplanamaz —
-          sistem yaklaşık bir sayı uydurmaz, mesafe takibi sessizce kapalı kalır.</p>
-      {% endif %}
-      <form method="post" action="/ayarlar/kalibrasyon" id="kalibrasyon-form" class="dikey-form">
-        <button type="button" class="dugme ikincil" id="cizim-baslat">Referans çizgisi çiz</button>
-        <div class="cizim-araclar" id="cizim-araclar">
-          <span class="cizim-durum" id="cizim-durum"></span>
-          <button type="button" class="dugme ikincil kucuk" id="cizim-geri" disabled>↩ Geri Al</button>
-          <button type="button" class="dugme sade kucuk" id="cizim-iptal">İptal (Esc)</button>
-        </div>
-        <span class="not">Görüntüde uzunluğunu bildiğiniz bir mesafenin iki ucuna tıklayın
-          (örn. bir park yerinin genişliği).</span>
-        <label>Bu çizginin gerçek uzunluğu
-          <input name="metre" id="metre" value="{{ referans_metre or '2,5' }}" size="6" inputmode="decimal"> metre
-        </label>
-        <input type="hidden" name="cizgi" id="cizgi">
-        <button class="dugme" id="kalibrasyon-kaydet" disabled>Ölçeği Kaydet</button>
-      </form>
+
+      <div class="yontem-sec">
+        <button type="button" class="yontem-dugme {{ 'aktif' if kalibrasyon_modu == 'cizgi' else '' }}"
+                data-yontem-sec="cizgi"
+                title="Tek referans çizgisiyle yaklaşık ölçek — küçük, düz otoparklar için">
+          Basit <small>tek çizgi</small>
+          {% if olcek_hazir %}<span class="rozet {{ 'yesil' if kalibrasyon_modu == 'cizgi' else 'gri' }}">{{ 'aktif' if kalibrasyon_modu == 'cizgi' else 'ayarlı' }}</span>{% endif %}
+        </button>
+        <button type="button" class="yontem-dugme {{ 'aktif' if kalibrasyon_modu == 'homografi' else '' }}"
+                data-yontem-sec="homografi"
+                title="4 köşe ile zemin dönüşümü — derinlik farkında da doğru mesafe (önerilen)">
+          Hassas <small>4 nokta</small>
+          {% if homografi_hazir %}<span class="rozet {{ 'yesil' if kalibrasyon_modu == 'homografi' else 'gri' }}">{{ 'aktif' if kalibrasyon_modu == 'homografi' else 'ayarlı' }}</span>{% endif %}
+        </button>
+      </div>
+
+      <div data-yontem="cizgi" {% if kalibrasyon_modu == 'homografi' %}hidden{% endif %}>
+        {% if olcek_hazir %}
+          <p class="not">Basit ölçek ayarlı — referans uzunluğu: {{ referans_metre }} m;
+            görüntüde <b>1 metre ≈ {{ metre_piksel }} piksel</b>.
+            Kamera açısı değişirse yeniden ayarlayın.</p>
+          {% if kalibrasyon_modu != 'cizgi' %}
+          <form method="post" action="/ayarlar/kalibrasyon-modu" class="satir-form">
+            <input type="hidden" name="mod" value="cizgi">
+            <button class="dugme ikincil kucuk"
+                    title="Mesafeler yeniden tek çizgili yaklaşık ölçekle hesaplanır">Bu yöntemi aktif yap</button>
+          </form>
+          {% endif %}
+        {% else %}
+          <p class="not kirmizi-metin">Basit ölçek henüz ayarlanmadı.</p>
+        {% endif %}
+        <form method="post" action="/ayarlar/kalibrasyon" id="kalibrasyon-form" class="dikey-form">
+          <button type="button" class="dugme ikincil" id="cizim-baslat"
+                  title="Canlı görüntünün üzerinde iki noktaya tıklayarak çizersiniz">Referans çizgisi çiz</button>
+          <span class="not">Yukarıdaki canlı görüntüde, uzunluğunu bildiğiniz bir mesafenin
+            iki ucuna tıklayın (örn. bir park yerinin genişliği ≈ 2,5 m).</span>
+          <label>Bu çizginin gerçek uzunluğu
+            <input name="metre" id="metre" value="{{ referans_metre or '2,5' }}" size="6" inputmode="decimal"
+                   title="Çizdiğiniz çizginin sahadaki gerçek uzunluğu — şeritmetreyle ölçebilirsiniz"> metre
+          </label>
+          <input type="hidden" name="cizgi" id="cizgi">
+          <button class="dugme" id="kalibrasyon-kaydet" disabled
+                  title="Çizgi tamamlanınca etkinleşir; kaydedince bu yöntem aktif olur">Ölçeği Kaydet</button>
+        </form>
+      </div>
+
+      <div data-yontem="homografi" {% if kalibrasyon_modu != 'homografi' %}hidden{% endif %}>
+        {% if homografi_hazir %}
+          <p class="not">Hassas kalibrasyon ayarlı — dikdörtgen: {{ homografi_en }} × {{ homografi_boy }} m.
+            Mesafeler zemine yansıtılarak hesaplanıyor; kamera açısı değişirse yeniden ayarlayın.</p>
+          {% if kalibrasyon_modu != 'homografi' %}
+          <form method="post" action="/ayarlar/kalibrasyon-modu" class="satir-form">
+            <input type="hidden" name="mod" value="homografi">
+            <button class="dugme ikincil kucuk"
+                    title="Mesafeler 4 nokta kalibrasyonuyla, derinlik farkında da doğru hesaplanır">Bu yöntemi aktif yap</button>
+          </form>
+          {% endif %}
+        {% else %}
+          <p class="not kirmizi-metin">Hassas kalibrasyon henüz ayarlanmadı — aşağıdaki üç adım yeterli.</p>
+        {% endif %}
+        <form method="post" action="/ayarlar/homografi" id="homografi-form" class="dikey-form">
+          <button type="button" class="dugme ikincil" id="homografi-baslat"
+                  title="Canlı görüntüde dikdörtgenin 4 köşesine saat yönünde tıklarsınız">Dikdörtgenin 4 köşesini işaretle</button>
+          <span class="not">Zeminde ölçülerini bildiğiniz bir dikdörtgen seçin — tek park yeri
+            (≈ 2,5 × 5 m) idealdir. Köşelere <b>saat yönünde</b> tıklayın:
+            1&nbsp;sol-üst → 2&nbsp;sağ-üst → 3&nbsp;sağ-alt → 4&nbsp;sol-alt.
+            "Üst" = kameraya uzak kenar.</span>
+          <div class="satir-form">
+            <label>Gerçek en
+              <input name="en_m" id="homografi-en" value="{{ homografi_en }}" size="5" inputmode="decimal"
+                     title="Dikdörtgenin kısa kenarı — köşe 3→4 arası (kameraya yakın kenar)"> m
+            </label>
+            <label>Gerçek boy
+              <input name="boy_m" id="homografi-boy" value="{{ homografi_boy }}" size="5" inputmode="decimal"
+                     title="Dikdörtgenin uzun kenarı — köşe 2→3 arası (derinlik yönü)"> m
+            </label>
+          </div>
+          <input type="hidden" name="noktalar" id="noktalar">
+          <button class="dugme" id="homografi-kaydet" disabled
+                  title="4 köşe tamamlanınca etkinleşir; kaydedince bu yöntem aktif olur">Kalibrasyonu Kaydet</button>
+        </form>
+      </div>
 
       <h3>3. Görüntü kaynağı
         <span class="ipucu" tabindex="0">?<span class="balon balon-sag"><b>Hangisini seçmeliyim?</b>
@@ -234,7 +312,12 @@
 
   <!-- RENK DAĞILIMI -->
   <section class="kart">
-    <h2>Araç renkleri — {{ gun_etiketi }}</h2>
+    <h2>Araç renkleri — {{ gun_etiketi }}
+      <span class="ipucu" tabindex="0">?<span class="balon"><b>Renkler nasıl belirleniyor?</b>
+        Her aracın kutusundaki baskın renk ölçülür ve gün boyu dağılımı burada
+        toplanır. Gölgede ve gece isabet düşer; sistem karar veremezse
+        "belirsiz" yazar — yanlış renk uydurmaz.
+      </span></span></h2>
     {% if renkler %}
       <div class="renk-cubugu">
         {% for r in renkler %}
@@ -255,7 +338,13 @@
 
   <!-- İSTATİSTİKLER -->
   <section class="kart">
-    <h2>İstatistikler — {{ gun_etiketi }}</h2>
+    <h2>İstatistikler — {{ gun_etiketi }}
+      <span class="ipucu" tabindex="0">?<span class="balon"><b>Bu grafikler neyi gösterir?</b>
+        Üstteki çubuklar seçili günde araçların hangi saatlerde geldiğini,
+        alttaki ise son 7 günün toplamlarını gösterir. Çubuğun üzerine
+        gelince tam sayıyı görürsünüz. En yoğun saati bilmek, personel
+        planlaması için kullanışlıdır.
+      </span></span></h2>
     <div class="ist-izgara">
       <div class="ist-kutu"><b>{{ ozet.arac }}</b><span>araç geldi</span></div>
       <div class="ist-kutu"><b>{{ ozet.insan }}</b><span>kişi geçti</span></div>
@@ -297,7 +386,13 @@
   <!-- ÇOK YAKIN PARK -->
   {% if yakinliklar %}
   <section class="kart">
-    <h2>Çok yakın park uyarıları</h2>
+    <h2>Çok yakın park uyarıları
+      <span class="ipucu" tabindex="0">?<span class="balon"><b>Bu liste nasıl oluşur?</b>
+        İki araç arasındaki zemin mesafesi, sizin belirlediğiniz eşiğin altına
+        düşünce buraya fotoğraflı bir kayıt düşer. Aynı araç çifti için
+        {{ '60' }} saniye içinde tekrar kayıt açılmaz. Mesafenin hesaplanabilmesi
+        için kalibrasyonun yapılmış olması gerekir.
+      </span></span></h2>
     <table>
       <tr><th>Saat</th><th>Ölçülen</th><th>Eşik</th><th>Görüntü</th></tr>
       {% for y in yakinliklar %}
@@ -315,7 +410,12 @@
 
   <!-- GELEN ARAÇLAR -->
   <section class="kart">
-    <h2>Gelen araçlar</h2>
+    <h2>Gelen araçlar
+      <span class="ipucu" tabindex="0">?<span class="balon"><b>Sayım nasıl çalışır?</b>
+        Her araç bir takip numarası alır ve günde bir kez sayılır; fotoğrafı
+        ve geliş saati burada listelenir. Bilinen sınır: görüntüden tamamen
+        çıkıp uzun süre sonra dönen araç yeni numara alır ve yeniden sayılabilir.
+      </span></span></h2>
     {% if araclar %}
     <div class="arac-izgara">
       {% for a in araclar %}
@@ -337,7 +437,12 @@
 
   <!-- GÜN SEÇİMİ VE RAPOR -->
   <section class="kart">
-    <h2>Gün seçimi ve rapor</h2>
+    <h2>Gün seçimi ve rapor
+      <span class="ipucu" tabindex="0">?<span class="balon"><b>Rapor ve sıfırlama</b>
+        Geçmiş bir günü seçip o günün sayılarını görebilirsiniz. <b>CSV indir</b>,
+        seçili günün kayıtlarını Excel'de açılabilen bir dosya olarak verir.
+        <b>Sıfırla</b> yalnızca seçili günün kayıtlarını siler ve geri alınamaz.
+      </span></span></h2>
     <form method="get" action="/" class="satir-form">
       <select name="gun">
         <option value="{{ '' }}">Bugün ({{ zaman_bugun_etiketi | default(gun_etiketi) }})</option>
@@ -346,12 +451,14 @@
         {% endfor %}
       </select>
       <button class="dugme ikincil">Göster</button>
-      <a class="dugme ikincil" href="/rapor.csv?gun={{ gun }}">CSV indir</a>
+      <a class="dugme ikincil" href="/rapor.csv?gun={{ gun }}"
+         title="Seçili günün araç/kişi kayıtlarını Excel'de açılabilen CSV dosyası olarak indirir">CSV indir</a>
     </form>
     <form method="post" action="/sifirla" class="satir-form"
           onsubmit="return confirm('{{ gun_etiketi }} gününün demo kayıtları silinsin mi?')">
       <input type="hidden" name="gun" value="{{ gun }}">
-      <button class="dugme tehlike kucuk">Bu günün kayıtlarını sıfırla</button>
+      <button class="dugme tehlike kucuk"
+              title="Yalnızca seçili günün kayıtlarını siler — geri alınamaz">Bu günün kayıtlarını sıfırla</button>
       <span class="not">Demo tekrarı için; yalnız seçili günü siler.</span>
     </form>
   </section>

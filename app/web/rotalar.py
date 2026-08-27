@@ -20,7 +20,7 @@ from fastapi.templating import Jinja2Templates
 from app import ayarlar as ayarlar_modulu
 from app import veritabani, zaman
 from app.ayarlar import AyarHatasi
-from app.mesafe import OlcekHatasi, esik_dogrula, olcek_hesapla
+from app.mesafe import OlcekHatasi, esik_dogrula, homografi_hesapla, olcek_hesapla
 
 router = APIRouter()
 SABLONLAR = Path(__file__).resolve().parent / "templates"
@@ -147,6 +147,11 @@ def ozet(
     ][::-1]
 
     olcek = float(ayarlar.get("olcek_m_px", "0") or 0)
+    # Mesafe kalibrasyonu: iki yöntemden hangisi seçili ve hangileri ayarlı?
+    kalibrasyon_modu = ayarlar.get("kalibrasyon_modu", "cizgi")
+    cizgi_hazir = olcek > 0
+    homografi_hazir = bool(ayarlar.get("homografi"))
+    mesafe_hazir = homografi_hazir if kalibrasyon_modu == "homografi" else cizgi_hazir
     return sablonlar.TemplateResponse(
         istek,
         "ozet.html",
@@ -169,7 +174,13 @@ def ozet(
             "esik": ayarlar.get("mesafe_esigi_m", "1.5").replace(".", ","),
             "esik_sayi": ayarlar.get("mesafe_esigi_m", "1.5"),
             "metre_piksel": round(1 / olcek) if olcek > 0 else 0,
-            "olcek_hazir": olcek > 0,
+            "olcek_hazir": cizgi_hazir,
+            "kalibrasyon_modu": kalibrasyon_modu,
+            "homografi_hazir": homografi_hazir,
+            "mesafe_hazir": mesafe_hazir,
+            "homografi_noktalari": ayarlar.get("homografi_noktalari") or "",
+            "homografi_en": (ayarlar.get("homografi_en_m") or "2,5").replace(".", ","),
+            "homografi_boy": (ayarlar.get("homografi_boy_m") or "5").replace(".", ","),
             "referans_metre": (ayarlar.get("referans_metre") or "").replace(".", ","),
             "durum": getattr(analiz, "durum", "başlatılmadı"),
             "canli_arac": getattr(analiz, "canli_arac", 0),
@@ -231,7 +242,77 @@ def kalibrasyon_kaydet(
     veritabani.ayar_yaz(baglanti, "olcek_m_px", repr(olcek))
     veritabani.ayar_yaz(baglanti, "referans_cizgi", cizgi)
     veritabani.ayar_yaz(baglanti, "referans_metre", f"{gercek:g}")
-    return RedirectResponse("/", status_code=303)
+    # Hangi form kaydedildiyse o yöntem aktif olur
+    veritabani.ayar_yaz(baglanti, "kalibrasyon_modu", "cizgi")
+    return RedirectResponse(
+        "/?mesaj=" + quote("Basit ölçek kaydedildi ve aktif yöntem yapıldı."), status_code=303
+    )
+
+
+@router.post("/ayarlar/homografi")
+def homografi_kaydet(
+    noktalar: str = Form(...),  # JSON: 4 köşe [[x,y],...] normalize, saat yönünde
+    en_m: str = Form(...),
+    boy_m: str = Form(...),
+    baglanti=Depends(baglanti_al),
+):
+    """Hassas (4 nokta) kalibrasyonu kaydeder ve aktif yöntem yapar.
+
+    Köşeler normalize (0-1) saklanır: çözünürlük değişse de kalibrasyon
+    geçerli kalır; homografi de normalize koordinat üzerinden hesaplanır.
+    """
+    try:
+        ham = json.loads(noktalar)
+        koseler = [(float(n[0]), float(n[1])) for n in ham]
+        en = float(str(en_m).replace(",", "."))
+        boy = float(str(boy_m).replace(",", "."))
+        matris = homografi_hesapla(koseler, en, boy)
+    except (json.JSONDecodeError, TypeError, ValueError, IndexError):
+        return RedirectResponse(
+            "/?hata="
+            + quote(
+                "4 köşe okunamadı. Görüntüde, ölçülerini bildiğiniz dikdörtgenin "
+                "4 köşesine sırayla tıklayıp gerçek en/boyu metre olarak yazın."
+            ),
+            status_code=303,
+        )
+    except OlcekHatasi as hata:
+        return RedirectResponse(f"/?hata={quote(str(hata))}", status_code=303)
+
+    veritabani.ayar_yaz(baglanti, "homografi", json.dumps(matris))
+    veritabani.ayar_yaz(baglanti, "homografi_noktalari", json.dumps(koseler))
+    veritabani.ayar_yaz(baglanti, "homografi_en_m", f"{en:g}")
+    veritabani.ayar_yaz(baglanti, "homografi_boy_m", f"{boy:g}")
+    veritabani.ayar_yaz(baglanti, "kalibrasyon_modu", "homografi")
+    return RedirectResponse(
+        "/?mesaj="
+        + quote(
+            "Hassas kalibrasyon kaydedildi ve aktif yöntem yapıldı — mesafeler "
+            "artık derinlik farkında da doğru hesaplanır."
+        ),
+        status_code=303,
+    )
+
+
+@router.post("/ayarlar/kalibrasyon-modu")
+def kalibrasyon_modu_sec(mod: str = Form(...), baglanti=Depends(baglanti_al)):
+    """İki yöntem de kayıtlıysa aralarında tek tıkla geçiş."""
+    if mod not in ("cizgi", "homografi"):
+        return RedirectResponse("/?hata=" + quote("Geçersiz yöntem seçildi."), status_code=303)
+    ayarlar = veritabani.ayarlari_oku(baglanti)
+    hazir = (
+        bool(ayarlar.get("homografi"))
+        if mod == "homografi"
+        else float(ayarlar.get("olcek_m_px", "0") or 0) > 0
+    )
+    if not hazir:
+        return RedirectResponse(
+            "/?hata=" + quote("Bu yöntem henüz ayarlanmadı — önce aşağıdan kaydedin."),
+            status_code=303,
+        )
+    veritabani.ayar_yaz(baglanti, "kalibrasyon_modu", mod)
+    ad = "Hassas (4 nokta)" if mod == "homografi" else "Basit (tek çizgi)"
+    return RedirectResponse(f"/?mesaj={quote(ad + ' yöntemi aktif yapıldı.')}", status_code=303)
 
 
 @router.get("/onizleme.jpg")

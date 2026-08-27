@@ -21,7 +21,7 @@ def _gecis_ekle(baglanti, tip="arac", takip_id=1, renk="kırmızı", gun=None):
 def test_ozet_sayfasi_acilir(istemci):
     yanit = istemci.get("/")
     assert yanit.status_code == 200
-    assert "Kafe Otopark Takibi" in yanit.text
+    assert "NextGen" in yanit.text
     assert "araç geldi" in yanit.text
     assert "kişi geçti" in yanit.text
 
@@ -114,7 +114,9 @@ def test_kalibrasyon_olcegi_kaydeder(istemci, ayarlar):
         assert ayar["referans_metre"] == "5"
     finally:
         baglanti.close()
-    assert "ölçek hazır" in istemci.get("/").text
+    metin = istemci.get("/").text
+    assert "kalibrasyon hazır" in metin
+    assert "1 metre ≈ 100 piksel" in metin  # 0,01 m/px → 100 px/m
 
 
 def test_csv_raporu(istemci, ayarlar):
@@ -149,3 +151,92 @@ def test_gorsel_yolu_disari_cikamaz(istemci, ayarlar):
 
 def test_onizleme_yoksa_204(istemci):
     assert istemci.get("/onizleme.jpg").status_code == 204
+
+
+def test_homografi_kaydedilir_ve_aktif_olur(istemci, ayarlar):
+    """Hassas (4 nokta) kalibrasyon: kaydet → aktif yöntem olur."""
+    import json
+
+    from app import veritabani
+
+    koseler = [[0.40, 0.50], [0.60, 0.50], [0.80, 0.95], [0.20, 0.95]]
+    yanit = istemci.post(
+        "/ayarlar/homografi",
+        data={"noktalar": json.dumps(koseler), "en_m": "2,5", "boy_m": "5"},
+        follow_redirects=False,
+    )
+    assert yanit.status_code == 303
+    assert "hata" not in yanit.headers["location"]
+
+    baglanti = veritabani.baglanti_ac(ayarlar.veritabani)
+    try:
+        ayar = veritabani.ayarlari_oku(baglanti)
+        assert ayar["kalibrasyon_modu"] == "homografi"
+        matris = json.loads(ayar["homografi"])
+        assert len(matris) == 3 and len(matris[0]) == 3
+        assert ayar["homografi_en_m"] == "2.5"
+    finally:
+        baglanti.close()
+    assert "kalibrasyon hazır" in istemci.get("/").text
+
+
+def test_dogrusal_koselerle_homografi_anlasilir_hata(istemci):
+    import json
+
+    koseler = [[0.1, 0.5], [0.4, 0.5], [0.7, 0.5], [0.9, 0.5]]  # aynı doğru
+    yanit = istemci.post(
+        "/ayarlar/homografi",
+        data={"noktalar": json.dumps(koseler), "en_m": "2,5", "boy_m": "5"},
+        follow_redirects=False,
+    )
+    assert yanit.status_code == 303
+    assert "hata" in yanit.headers["location"]
+
+
+def test_bozuk_noktalarla_homografi_reddedilir(istemci):
+    yanit = istemci.post(
+        "/ayarlar/homografi",
+        data={"noktalar": "bozuk-json", "en_m": "2,5", "boy_m": "5"},
+        follow_redirects=False,
+    )
+    assert yanit.status_code == 303
+    assert "hata" in yanit.headers["location"]
+
+
+def test_mod_gecisi_yalniz_ayarli_yonteme_izin_verir(istemci, ayarlar):
+    import json
+
+    # Hiçbir yöntem ayarlı değilken geçiş reddedilir
+    yanit = istemci.post(
+        "/ayarlar/kalibrasyon-modu", data={"mod": "homografi"}, follow_redirects=False
+    )
+    assert "hata" in yanit.headers["location"]
+
+    # Homografi kaydedilince homografi aktif olur; çizgi ayarlanınca ona geçilebilir
+    koseler = [[0.40, 0.50], [0.60, 0.50], [0.80, 0.95], [0.20, 0.95]]
+    istemci.post(
+        "/ayarlar/homografi",
+        data={"noktalar": json.dumps(koseler), "en_m": "2,5", "boy_m": "5"},
+    )
+
+    class SahteAnaliz:
+        kare_boyutu = (1000, 600)
+
+    istemci.app.state.analiz = SahteAnaliz()
+    istemci.post(
+        "/ayarlar/kalibrasyon",
+        data={"cizgi": json.dumps([[0.25, 0.5], [0.75, 0.5]]), "metre": "5"},
+    )
+    # Çizgi kaydı modu "cizgi" yaptı; homografiye tek tıkla dönülebilir
+    yanit = istemci.post(
+        "/ayarlar/kalibrasyon-modu", data={"mod": "homografi"}, follow_redirects=False
+    )
+    assert "mesaj" in yanit.headers["location"]
+
+    from app import veritabani
+
+    baglanti = veritabani.baglanti_ac(ayarlar.veritabani)
+    try:
+        assert veritabani.ayarlari_oku(baglanti)["kalibrasyon_modu"] == "homografi"
+    finally:
+        baglanti.close()

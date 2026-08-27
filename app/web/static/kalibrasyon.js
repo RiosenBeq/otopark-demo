@@ -1,8 +1,12 @@
-// Referans çizgisi çizimi — kolaylaştırılmış sürüm.
+// Mesafe kalibrasyonu çizimi — iki yöntem, tek tuval.
 //
-// Kullanım: "Referans çizgisi çiz"e bas, görüntüde iki noktaya tıkla.
-// Fare gezerken çizgi canlı önizlenir; noktalar sonradan SÜRÜKLENEREK
-// düzeltilebilir. Esc iptal eder, "Geri Al" son noktayı siler.
+// BASİT (çizgi):   2 noktaya tıkla → uzunluğu metre yaz → kaydet.
+// HASSAS (4 nokta): zeminde ölçülerini bildiğin bir dikdörtgenin 4 köşesine
+//                   SAAT YÖNÜNDE tıkla (1 sol-üst → 2 sağ-üst → 3 sağ-alt →
+//                   4 sol-alt) → gerçek en/boy metre yaz → kaydet.
+//
+// Ortak davranış: fare gezerken canlı önizleme, noktalar sürüklenerek
+// düzeltilebilir, Esc iptal, "Geri Al" son noktayı siler.
 // Koordinatlar normalize (0-1) kaydedilir — çözünürlük değişse de geçerli.
 (function () {
   var img = document.getElementById("onizleme");
@@ -14,13 +18,45 @@
   var geriDugme = document.getElementById("cizim-geri");
   var iptalDugme = document.getElementById("cizim-iptal");
   var durumYazi = document.getElementById("cizim-durum");
+  var tuvalNot = document.getElementById("tuval-not");
+  var varsayilanNot = tuvalNot ? tuvalNot.textContent : "";
 
-  var noktalar = [];       // [[x,y], ...] normalize
-  var aktif = false;       // çizim modu açık mı
-  var imlec = null;        // fare konumu (canlı önizleme için)
-  var tasinan = -1;     // sürüklenen nokta indeksi (-1 = yok)
-  var RENK = "#22c55e";
-  var TUTMA = 14;          // px — noktayı yakalama yarıçapı
+  // Mod tanımları: hedef nokta sayısı, renk ve adım adım yönlendirme
+  var MODLAR = {
+    cizgi: {
+      hedef: 2,
+      renk: "#22c55e",
+      girisAlani: "cizgi",
+      kaydetDugmesi: "kalibrasyon-kaydet",
+      adimlar: [
+        "Çizginin BİRİNCİ ucuna tıklayın — uzunluğunu bildiğiniz bir mesafe seçin (örn. bir park yerinin genişliği).",
+        "Şimdi çizginin İKİNCİ ucuna tıklayın.",
+        "Çizgi hazır ✓ Uçları sürükleyip düzeltebilir, gerçek uzunluğu metre yazıp 'Ölçeği Kaydet'e basabilirsiniz."
+      ]
+    },
+    homografi: {
+      hedef: 4,
+      renk: "#2563eb",
+      girisAlani: "noktalar",
+      kaydetDugmesi: "homografi-kaydet",
+      adimlar: [
+        "Dikdörtgenin 1. köşesine tıklayın: SOL-ÜST (kameraya uzak sol köşe).",
+        "2. köşe: SAĞ-ÜST (kameraya uzak sağ köşe).",
+        "3. köşe: SAĞ-ALT (kameraya yakın sağ köşe).",
+        "4. köşe: SOL-ALT (kameraya yakın sol köşe).",
+        "Dikdörtgen hazır ✓ Köşeleri sürükleyip düzeltebilir, gerçek en/boyu metre yazıp 'Kalibrasyonu Kaydet'e basabilirsiniz."
+      ]
+    }
+  };
+
+  var mod = "cizgi";          // aktif çizim modu
+  var noktalar = [];           // [[x,y], ...] normalize
+  var aktif = false;           // çizim modu açık mı
+  var imlec = null;            // fare konumu (canlı önizleme)
+  var tasinan = -1;            // sürüklenen nokta (-1 = yok)
+  var TUTMA = 14;              // px — noktayı yakalama yarıçapı
+
+  function ayar() { return MODLAR[mod]; }
 
   function boyutla() {
     if (tuval.width === tuval.clientWidth && tuval.height === tuval.clientHeight) return;
@@ -29,64 +65,94 @@
     ciz();
   }
   window.addEventListener("resize", boyutla);
-  // Canlı görüntü sonradan gelince kart büyür; tampon ile ekran boyutu
-  // ayrışırsa tıklama noktaları kayar — her yenilemede eşitle.
   img.addEventListener("load", boyutla);
 
   function pikselde(n) { return [n[0] * tuval.width, n[1] * tuval.height]; }
 
+  function etiketKutusu(metin, x, y) {
+    ctx.font = "600 12px -apple-system, sans-serif";
+    var gen = ctx.measureText(metin).width + 12;
+    ctx.fillStyle = "rgba(15,16,20,0.8)";
+    ctx.fillRect(x - gen / 2, y - 22, gen, 18);
+    ctx.fillStyle = "#fff";
+    ctx.textAlign = "center";
+    ctx.fillText(metin, x, y - 9);
+  }
+
   function ciz() {
     ctx.clearRect(0, 0, tuval.width, tuval.height);
     if (noktalar.length === 0 && !aktif) return;
+    var renk = ayar().renk;
+    var hedef = ayar().hedef;
 
-    // canlı önizleme: ilk nokta konduysa fareye kadar kesikli çizgi
-    if (aktif && noktalar.length === 1 && imlec) {
-      var a = pikselde(noktalar[0]);
+    // Canlı önizleme: son noktadan fareye kesikli çizgi
+    if (aktif && noktalar.length > 0 && noktalar.length < hedef && imlec) {
+      var son = pikselde(noktalar[noktalar.length - 1]);
       ctx.setLineDash([7, 6]);
-      ctx.strokeStyle = RENK;
+      ctx.strokeStyle = renk;
       ctx.lineWidth = 2;
       ctx.beginPath();
-      ctx.moveTo(a[0], a[1]);
+      ctx.moveTo(son[0], son[1]);
       ctx.lineTo(imlec[0], imlec[1]);
       ctx.stroke();
       ctx.setLineDash([]);
     }
 
-    if (noktalar.length === 2) {
-      var b1 = pikselde(noktalar[0]), b2 = pikselde(noktalar[1]);
-      ctx.strokeStyle = RENK;
+    // Kenarlar: çizgi modunda tek kenar, 4 noktada kapalı dörtgen
+    if (noktalar.length >= 2) {
+      ctx.strokeStyle = renk;
       ctx.lineWidth = 3;
       ctx.beginPath();
-      ctx.moveTo(b1[0], b1[1]);
-      ctx.lineTo(b2[0], b2[1]);
+      var ilk = pikselde(noktalar[0]);
+      ctx.moveTo(ilk[0], ilk[1]);
+      for (var i = 1; i < noktalar.length; i++) {
+        var q = pikselde(noktalar[i]);
+        ctx.lineTo(q[0], q[1]);
+      }
+      if (mod === "homografi" && noktalar.length === 4) ctx.closePath();
       ctx.stroke();
-      // uzunluk etiketi (piksel) — kullanıcı çizgiyi görsün diye ortada
-      var ox = (b1[0] + b2[0]) / 2, oy = (b1[1] + b2[1]) / 2;
-      var uz = Math.round(Math.hypot(b2[0] - b1[0], b2[1] - b1[1]));
-      ctx.font = "600 12px -apple-system, sans-serif";
-      var metin = uz + " px";
-      var gen = ctx.measureText(metin).width + 12;
-      ctx.fillStyle = "rgba(15,16,20,0.8)";
-      ctx.fillRect(ox - gen / 2, oy - 22, gen, 18);
-      ctx.fillStyle = "#fff";
-      ctx.textAlign = "center";
-      ctx.fillText(metin, ox, oy - 9);
+      if (mod === "homografi" && noktalar.length === 4) {
+        ctx.fillStyle = "rgba(37,99,235,0.12)";
+        ctx.fill();
+      }
     }
 
+    // Çizgi modunda uzunluk etiketi
+    if (mod === "cizgi" && noktalar.length === 2) {
+      var a = pikselde(noktalar[0]), b = pikselde(noktalar[1]);
+      etiketKutusu(Math.round(Math.hypot(b[0] - a[0], b[1] - a[1])) + " px",
+        (a[0] + b[0]) / 2, (a[1] + b[1]) / 2);
+    }
+
+    // Noktalar + 4 nokta modunda köşe numaraları
     noktalar.forEach(function (n, i) {
       var p = pikselde(n);
       ctx.beginPath();
       ctx.arc(p[0], p[1], tasinan === i ? 8 : 6, 0, 7);
-      ctx.fillStyle = RENK;
+      ctx.fillStyle = renk;
       ctx.fill();
       ctx.lineWidth = 2;
       ctx.strokeStyle = "#fff";
       ctx.stroke();
+      if (mod === "homografi") {
+        ctx.fillStyle = "#fff";
+        ctx.font = "700 10px -apple-system, sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(String(i + 1), p[0], p[1] + 3.5);
+      }
     });
+
+    // 4 nokta modunda kenar ortalarına en/boy ipuçları
+    if (mod === "homografi" && noktalar.length === 4) {
+      var p0 = pikselde(noktalar[0]), p1 = pikselde(noktalar[1]);
+      var p2 = pikselde(noktalar[2]), p3 = pikselde(noktalar[3]);
+      etiketKutusu("en", (p2[0] + p3[0]) / 2, (p2[1] + p3[1]) / 2 + 26);
+      etiketKutusu("boy", (p1[0] + p2[0]) / 2 + 4, (p1[1] + p2[1]) / 2);
+    }
   }
 
   function konum(olay) {
-    boyutla(); // tıklamadan önce tampon ve ekran boyutu aynı olsun
+    boyutla();
     var kutu = tuval.getBoundingClientRect();
     return [olay.clientX - kutu.left, olay.clientY - kutu.top];
   }
@@ -104,18 +170,23 @@
     kilavuz.textContent = metin;
     kilavuz.classList.toggle("acik", !!metin);
   }
-
-  function durumYaz(metin) {
-    if (durumYazi) durumYazi.textContent = metin;
-  }
+  function durumYaz(metin) { if (durumYazi) durumYazi.textContent = metin; }
 
   function formaYaz() {
-    var hazir = noktalar.length === 2;
-    document.getElementById("cizgi").value = hazir ? JSON.stringify(
-      noktalar.map(function (n) { return [n[0], n[1]]; })
-    ) : "";
-    document.getElementById("kalibrasyon-kaydet").disabled = !hazir;
+    var m = ayar();
+    var hazir = noktalar.length === m.hedef;
+    var alan = document.getElementById(m.girisAlani);
+    var kaydet = document.getElementById(m.kaydetDugmesi);
+    if (alan) alan.value = hazir ? JSON.stringify(noktalar) : "";
+    if (kaydet) kaydet.disabled = !hazir;
     if (geriDugme) geriDugme.disabled = noktalar.length === 0;
+  }
+
+  function adimYaz() {
+    var m = ayar();
+    kilavuzYaz(m.adimlar[Math.min(noktalar.length, m.adimlar.length - 1)]);
+    durumYaz(noktalar.length + "/" + m.hedef + " nokta" +
+      (noktalar.length === m.hedef ? " ✓" : ""));
   }
 
   function bitir() {
@@ -127,20 +198,18 @@
     ciz();
   }
 
-  var varsayilanNot = document.getElementById("tuval-not").textContent;
-
   function iptal() {
     noktalar = [];
     tasinan = -1;
     formaYaz();
     durumYaz("");
-    document.getElementById("tuval-not").textContent = varsayilanNot;
+    if (tuvalNot) tuvalNot.textContent = varsayilanNot;
     bitir();
   }
 
   tuval.addEventListener("mousedown", function (olay) {
-    if (!aktif && noktalar.length === 2) {
-      // çizim bitti ama nokta sürüklenerek düzeltilebilir
+    if (!aktif && noktalar.length === ayar().hedef) {
+      // Çizim bitti ama noktalar sürüklenerek düzeltilebilir
       var i = yakinNokta(konum(olay));
       if (i !== -1) { tasinan = i; olay.preventDefault(); }
       return;
@@ -149,21 +218,14 @@
     var p = konum(olay);
     var i2 = yakinNokta(p);
     if (i2 !== -1) { tasinan = i2; olay.preventDefault(); return; }
-    if (noktalar.length >= 2) return;
+    if (noktalar.length >= ayar().hedef) return;
     noktalar.push([p[0] / tuval.width, p[1] / tuval.height]);
-    if (noktalar.length === 1) {
-      kilavuzYaz("Şimdi çizginin İKİNCİ ucuna tıklayın. (Esc: iptal, Geri Al: son nokta)");
-      durumYaz("1/2 nokta");
-    } else {
-      formaYaz();
-      kilavuzYaz("Çizgi hazır. Uçları sürükleyerek düzeltebilirsiniz. " +
-        "Gerçek uzunluğu metre olarak yazıp 'Ölçeği Kaydet'e basın.");
-      durumYaz("Çizgi hazır ✓");
-      document.getElementById("tuval-not").textContent =
-        "Çizgi hazır. Gerçek uzunluğunu metre olarak yazıp 'Ölçeği Kaydet'e basın.";
+    if (noktalar.length === ayar().hedef) {
       aktif = false;
       tuval.classList.remove("aktif");
+      if (tuvalNot) tuvalNot.textContent = ayar().adimlar[ayar().adimlar.length - 1];
     }
+    adimYaz();
     ciz();
     formaYaz();
   });
@@ -178,7 +240,7 @@
       ciz();
       return;
     }
-    if (aktif && noktalar.length === 1) {
+    if (aktif && noktalar.length > 0 && noktalar.length < ayar().hedef) {
       var kutu2 = tuval.getBoundingClientRect();
       imlec = [olay.clientX - kutu2.left, olay.clientY - kutu2.top];
       ciz();
@@ -189,28 +251,21 @@
   });
 
   document.addEventListener("keydown", function (olay) {
-    // Yalnız çizim modunda ya da uç sürüklerken: bitmiş çizgi, başka bir
-    // amaçla basılan Esc ile yanlışlıkla silinmesin (İptal düğmesi her an var)
     if (olay.key === "Escape" && (aktif || tasinan !== -1)) iptal();
   });
 
   if (geriDugme) geriDugme.addEventListener("click", function () {
     noktalar.pop();
     formaYaz();
-    if (noktalar.length === 0) {
-      kilavuzYaz("Çizginin BİRİNCİ ucuna tıklayın — uzunluğunu bildiğiniz bir mesafe seçin.");
-      durumYaz("0/2 nokta");
-    } else {
-      kilavuzYaz("Şimdi çizginin İKİNCİ ucuna tıklayın.");
-      durumYaz("1/2 nokta");
-    }
     aktif = true;
     tuval.classList.add("aktif");
+    adimYaz();
     ciz();
   });
   if (iptalDugme) iptalDugme.addEventListener("click", iptal);
 
-  document.getElementById("cizim-baslat").addEventListener("click", function () {
+  function baslat(yeniMod) {
+    mod = yeniMod;
     aktif = true;
     noktalar = [];
     imlec = null;
@@ -218,12 +273,27 @@
     ciz();
     tuval.classList.add("aktif");
     if (araclar) araclar.classList.add("acik");
-    document.getElementById("kalibrasyon-kaydet").disabled = true;
-    kilavuzYaz("Çizginin BİRİNCİ ucuna tıklayın — uzunluğunu bildiğiniz bir mesafe seçin " +
-      "(örn. bir park yerinin genişliği).");
-    durumYaz("0/2 nokta");
-    document.getElementById("tuval-not").textContent =
-      "Görüntüde, uzunluğunu bildiğiniz mesafenin iki ucuna sırayla tıklayın.";
+    adimYaz();
+    if (tuvalNot) tuvalNot.textContent = ayar().adimlar[0];
+  }
+
+  var cizgiBaslat = document.getElementById("cizim-baslat");
+  if (cizgiBaslat) cizgiBaslat.addEventListener("click", function () { baslat("cizgi"); });
+  var homografiBaslat = document.getElementById("homografi-baslat");
+  if (homografiBaslat) homografiBaslat.addEventListener("click", function () { baslat("homografi"); });
+
+  // Yöntem sekmeleri: yalnız görünürlüğü değiştirir; kayıt formlar üzerinden
+  document.querySelectorAll("[data-yontem-sec]").forEach(function (dugme) {
+    dugme.addEventListener("click", function () {
+      var secilen = dugme.dataset.yontemSec;
+      document.querySelectorAll("[data-yontem-sec]").forEach(function (d) {
+        d.classList.toggle("aktif", d === dugme);
+      });
+      document.querySelectorAll("[data-yontem]").forEach(function (bolum) {
+        bolum.hidden = bolum.dataset.yontem !== secilen;
+      });
+      iptal();
+    });
   });
 
   setTimeout(boyutla, 300);

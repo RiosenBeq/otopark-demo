@@ -802,3 +802,25 @@ img.kucuk { height: 40px; border-radius: 6px; display: block; }
 .giris-kutusu h1 { margin: 0; font-size: 1.2rem; letter-spacing: -0.01em; }
 .giris-kutusu form { display: grid; gap: 12px; text-align: left; }
 .giris-kutusu .dugme { justify-content: center; }
+
+/* Mesafe kalibrasyonu: yöntem seçici sekmeler */
+.yontem-sec { display: flex; gap: 8px; margin: 6px 0 12px; }
+.yontem-dugme {
+  flex: 1; display: flex; flex-direction: column; align-items: center; gap: 2px;
+  padding: 8px 10px; cursor: pointer; font-family: inherit; font-size: 0.9rem;
+  font-weight: 600; color: var(--metin);
+  border: 1px solid var(--cizgi); border-radius: 10px;
+  background: rgba(255, 255, 255, 0.55);
+}
+.yontem-dugme small { font-weight: 400; color: var(--metin-2); font-size: 0.74rem; }
+.yontem-dugme.aktif {
+  border-color: var(--vurgu); background: rgba(37, 99, 235, 0.08);
+  box-shadow: inset 0 0 0 1px var(--vurgu);
+}
+.yontem-dugme .rozet { margin-top: 2px; }
+
+/* NextGen Detector logosu */
+.cubuk h1 .logo, .giris-kutusu h1 .logo {
+  width: 26px; height: 26px; vertical-align: -5px; margin-right: 2px;
+}
+.cubuk h1 b { font-weight: 800; }
