@@ -4,7 +4,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>Otopark Demo — {{ gun_etiketi }}</title>
-  <link rel="stylesheet" href="/static/stil.css">
+  <link rel="stylesheet" href="/static/stil.css?v=8">
 </head>
 <body>
 <header>
@@ -15,7 +15,7 @@
       <a href="/kutuphane">Kütüphane</a>
       <a href="/tarama">Kare tarama</a>
     </nav>
-    <div class="durum">
+    <div class="durum" aria-live="polite">
       <span class="nokta {{ 'yesil' if durum == 'çalışıyor' else 'kirmizi' }}"></span>
       <span id="durum-metni">{{ durum }}</span>
     </div>
@@ -24,12 +24,13 @@
 
 <main>
   {% if hata %}<div class="uyari kirmizi-kutu">{{ hata }}</div>{% endif %}
+  {% if mesaj %}<div class="basari">{{ mesaj }}</div>{% endif %}
   {% if model_hatasi %}<div class="uyari kirmizi-kutu">{{ model_hatasi }}</div>{% endif %}
   {% if kaynak_hatasi %}<div class="uyari kirmizi-kutu">{{ kaynak_hatasi }}</div>{% endif %}
 
   <!-- ÖZET SAYILAR -->
   <section class="sayilar">
-    <div class="sayi-kutu">
+    <div class="sayi-kutu ana">
       <div class="sayi" id="sayi-arac">{{ ozet.arac }}</div>
       <div class="etiket-metin">araç geldi</div>
       <div class="alt">{{ gun_etiketi }}</div>
@@ -51,6 +52,47 @@
     </div>
   </section>
 
+  <!-- KURULUM KILAVUZU -->
+  {% set kamera_ok = durum == 'çalışıyor' %}
+  {% set kurulum_tamam = kamera_ok and olcek_hazir %}
+  <details class="kart" {% if not kurulum_tamam %}open{% endif %}>
+    <summary>Kurulum kılavuzu — sistemi 3 adımda hazırla</summary>
+    <div class="kilavuz">
+      <div class="kilavuz-adim {{ 'tamam' if kamera_ok else '' }}">
+        <span class="kilavuz-no"><span>1</span></span>
+        <span class="kilavuz-metin"><b>Kameranı bağla</b>
+          <small>Aşağıdaki "Görüntü kaynağı" bölümünden bilgisayar kamerası, IP kamera
+          ya da video dosyası seç; "Bağlantıyı Sına" ile görüntüyü doğrula, sonra Kaydet.</small>
+        </span>
+        <span class="rozet {{ 'yesil' if kamera_ok else 'gri' }}">{{ 'bağlı' if kamera_ok else 'bekliyor' }}</span>
+      </div>
+      <div class="kilavuz-adim {{ 'tamam' if olcek_hazir else '' }}">
+        <span class="kilavuz-no"><span>2</span></span>
+        <span class="kilavuz-metin"><b>Referans çizgisi çiz (ölçek)</b>
+          <small>Görüntüde uzunluğunu bildiğin bir mesafeyi çizip metre olarak yaz —
+          mesafeler ancak böyle metreye çevrilir. Ayarlar'daki "Ölçek" başlığının
+          yanındaki <b>?</b> işaretinde adım adım anlatım var.</small>
+        </span>
+        <span class="rozet {{ 'yesil' if olcek_hazir else 'gri' }}">{{ 'hazır' if olcek_hazir else 'bekliyor' }}</span>
+      </div>
+      <div class="kilavuz-adim tamam">
+        <span class="kilavuz-no"><span>3</span></span>
+        <span class="kilavuz-metin"><b>Mesafe eşiğini belirle</b>
+          <small>Araçlar arası en az güvenli mesafeyi sen seçersin; altına düşen çiftler kaydedilir.</small>
+        </span>
+        <span class="rozet yesil">{{ esik }} m</span>
+      </div>
+      <div class="kilavuz-adim {{ 'tamam' if nesne_sayisi else '' }}">
+        <span class="kilavuz-no"><span>+</span></span>
+        <span class="kilavuz-metin"><b>Kendi nesnelerini tanıt <span class="kucuk-metin">(isteğe bağlı)</span></b>
+          <small>"Bu bizim servis aracımız" diyebilmek için nesnenin 3-8 fotoğrafını yükle.</small>
+        </span>
+        {% if nesne_sayisi %}<span class="rozet yesil">{{ nesne_sayisi }} nesne</span>{% endif %}
+        <a class="dugme ikincil kucuk" href="/kutuphane">Kütüphaneyi aç</a>
+      </div>
+    </div>
+  </details>
+
   <div class="izgara">
     <!-- CANLI GÖRÜNTÜ -->
     <section class="kart">
@@ -58,6 +100,7 @@
       <div class="cizim-alani">
         <img id="onizleme" src="/onizleme.jpg" alt="otopark görüntüsü">
         <canvas id="tuval"></canvas>
+        <div class="kilavuz-yazi" id="cizim-kilavuz"></div>
       </div>
       <p class="not" id="tuval-not">Turuncu kutu = araç, yeşil = kişi, kırmızı = eşikten yakın araç.</p>
     </section>
@@ -66,20 +109,46 @@
     <section class="kart">
       <h2>Ayarlar</h2>
 
-      <h3>1. Mesafe eşiği <span class="rozet {{ 'yesil' if olcek_hazir else 'gri' }}">
+      <h3>1. Mesafe eşiği
+        <span class="ipucu" tabindex="0">?<span class="balon"><b>Mesafe eşiği nedir?</b>
+          İki aracın arasındaki en az güvenli mesafedir. Ölçülen mesafe bu değerin
+          altına düşerse olay kaydı açılır ve kutular kırmızıya döner.
+          <ul><li>Eşiği siz belirlersiniz; küçük bir otoparkta 1,5–2,5 m iyi bir başlangıçtır.</li>
+          <li>Önce ölçek (2. adım) çizilmiş olmalı — yoksa sistem metre hesaplayamaz.</li></ul>
+        </span></span>
+        <span class="rozet {{ 'yesil' if olcek_hazir else 'gri' }}">
         {{ 'ölçek hazır' if olcek_hazir else 'önce ölçek gerekli' }}</span></h3>
-      <form method="post" action="/ayarlar/mesafe" class="satir-form">
-        <label>Araçlar arası en az mesafe
-          <input name="esik_m" value="{{ esik }}" size="6"> metre
+      <form method="post" action="/ayarlar/mesafe" class="dikey-form">
+        <label style="max-width: 460px">Araçlar arası en az mesafe
+          <span class="kaydirici">
+            <input type="range" name="esik_m" min="0.2" max="50" step="0.1"
+                   value="{{ esik_sayi }}" aria-label="mesafe eşiği (metre)">
+            <span class="kaydirici-deger" data-birim=" m">{{ esik }} m</span>
+          </span>
         </label>
         <button class="dugme">Kaydet</button>
       </form>
       <p class="not">Bu değeri siz belirlersiniz. İki araç arası mesafe bunun altına
         düşerse kayıt açılır ve kutular kırmızıya döner.</p>
+      <label class="satir-form onay-kutusu">
+        <input type="checkbox" data-ses-anahtari>
+        Yeni "çok yakın park" uyarısında sesli bildirim çal
+      </label>
 
-      <h3>2. Ölçek (metre/piksel)</h3>
+      <h3>2. Ölçek (metre/piksel)
+        <span class="ipucu" tabindex="0">?<span class="balon"><b>Ölçek neden gerekli?</b>
+          Kamera pikseli bilir, metreyi bilmez. Uzunluğunu bildiğiniz bir mesafeyi
+          bir kez gösterirseniz sistem piksel→metre çevirisini öğrenir.
+          <ol><li>"Referans çizgisi çiz"e basın.</li>
+          <li>Görüntüde uzunluğunu bildiğiniz bir mesafenin iki ucuna tıklayın
+            (park yeri genişliği ≈ 2,5 m, araç boyu ≈ 4,5 m).</li>
+          <li>Fare gezerken çizgi canlı görünür; uçları sürükleyip düzeltebilirsiniz.</li>
+          <li>Gerçek uzunluğu metre yazıp "Ölçeği Kaydet"e basın.</li></ol>
+          İpucu: çizgiyi yere yakın, düz bir hatta çizin. Yanlışsa Esc ile iptal edin.
+        </span></span></h3>
       {% if olcek_hazir %}
-        <p class="not">Ölçek ayarlı — referans uzunluğu: {{ referans_metre }} m.
+        <p class="not">Ölçek ayarlı — referans uzunluğu: {{ referans_metre }} m;
+          görüntüde <b>1 metre ≈ {{ metre_piksel }} piksel</b>.
           Kamera açısı değişirse yeniden ayarlayın.</p>
       {% else %}
         <p class="not kirmizi-metin">Ölçek ayarlanmadan mesafe hesaplanamaz —
@@ -87,19 +156,79 @@
       {% endif %}
       <form method="post" action="/ayarlar/kalibrasyon" id="kalibrasyon-form" class="dikey-form">
         <button type="button" class="dugme ikincil" id="cizim-baslat">Referans çizgisi çiz</button>
+        <div class="cizim-araclar" id="cizim-araclar">
+          <span class="cizim-durum" id="cizim-durum"></span>
+          <button type="button" class="dugme ikincil kucuk" id="cizim-geri" disabled>↩ Geri Al</button>
+          <button type="button" class="dugme sade kucuk" id="cizim-iptal">İptal (Esc)</button>
+        </div>
         <span class="not">Görüntüde uzunluğunu bildiğiniz bir mesafenin iki ucuna tıklayın
           (örn. bir park yerinin genişliği).</span>
         <label>Bu çizginin gerçek uzunluğu
-          <input name="metre" id="metre" value="{{ referans_metre or '2,5' }}" size="6"> metre
+          <input name="metre" id="metre" value="{{ referans_metre or '2,5' }}" size="6" inputmode="decimal"> metre
         </label>
         <input type="hidden" name="cizgi" id="cizgi">
         <button class="dugme" id="kalibrasyon-kaydet" disabled>Ölçeği Kaydet</button>
       </form>
 
-      <h3>3. Görüntü kaynağı</h3>
-      <p class="not">Şu an: <code>{{ kaynak }}</code><br>
-        Değiştirmek için proje klasöründeki <b>.env</b> dosyasındaki <b>KAYNAK</b>
-        satırını düzenleyip sistemi yeniden başlatın.</p>
+      <h3>3. Görüntü kaynağı
+        <span class="ipucu" tabindex="0">?<span class="balon balon-sag"><b>Hangisini seçmeliyim?</b>
+          <ul><li><b>Bilgisayar kamerası:</b> en kolay deneme. 0 = dahili kamera,
+            1 = USB ile takılı ikinci kamera.</li>
+          <li><b>IP / güvenlik kamerası:</b> adres genelde şöyledir:
+            rtsp://kullanici:sifre@192.168.1.50:554/stream1 — doğru adresi kameranın
+            telefon uygulamasında ya da kullanım kılavuzunda bulabilirsiniz.</li>
+          <li><b>Video dosyası:</b> kayıtlı bir görüntüyü döngüde oynatır (deneme için ideal).</li></ul>
+          Önce "Bağlantıyı Sına" ile görüntü geldiğini doğrulayın, sonra Kaydet.
+        </span></span></h3>
+      <p class="not">Şu an: <code>{{ kaynak }}</code></p>
+      <form method="post" action="/ayarlar/kaynak" id="kaynak-form" class="dikey-form">
+        <div class="kaynak-secenekler">
+          <label class="kaynak-secenek">
+            <input type="radio" name="tur" value="kamera" {{ 'checked' if kaynak_tur == 'kamera' else '' }}>
+            <span class="kutu"><span class="simge">📷</span><b>Bilgisayar kamerası</b>
+              <small>dahili ya da USB kamera</small></span>
+          </label>
+          <label class="kaynak-secenek">
+            <input type="radio" name="tur" value="rtsp" {{ 'checked' if kaynak_tur == 'rtsp' else '' }}>
+            <span class="kutu"><span class="simge">🌐</span><b>IP kamera</b>
+              <small>ağdaki güvenlik kamerası (RTSP)</small></span>
+          </label>
+          <label class="kaynak-secenek">
+            <input type="radio" name="tur" value="dosya" {{ 'checked' if kaynak_tur == 'dosya' else '' }}>
+            <span class="kutu"><span class="simge">🎞️</span><b>Video dosyası</b>
+              <small>kayıtlı görüntüyle deneme</small></span>
+          </label>
+        </div>
+        <div class="kaynak-alan" data-tur="kamera">
+          <label>Kamera numarası
+            <input name="kamera_no" value="{{ kaynak_ham if kaynak_tur == 'kamera' else '0' }}"
+                   inputmode="numeric" style="max-width: 110px">
+          </label>
+          <span class="not">0 = bilgisayarın kendi kamerası, 1 = USB ile takılı ikinci kamera.</span>
+        </div>
+        <div class="kaynak-alan" data-tur="rtsp">
+          <label>Kamera adresi (RTSP)
+            <input name="rtsp_adres" value=""
+                   placeholder="rtsp://kullanici:sifre@192.168.1.50:554/stream1" autocomplete="off">
+          </label>
+          <span class="not">Adresi kameranın telefon uygulamasında ya da kılavuzunda bulabilirsiniz.
+            Güvenlik için kayıtlı adres burada gösterilmez; sınamak ya da değiştirmek
+            için adresi yeniden yazın.</span>
+        </div>
+        <div class="kaynak-alan" data-tur="dosya">
+          <label>Video dosyasının yolu
+            <input name="dosya_yolu" value="{{ kaynak_ham if kaynak_tur == 'dosya' else 'veri/ornek-otopark.mp4' }}"
+                   placeholder="veri/kayit.mp4">
+          </label>
+          <span class="not">Proje klasörüne göre yol yazın (örn. veri/kayit.mp4). Hızlı bir deneme
+            için <a href="/tarama">Kare tarama</a> sayfasına da video yükleyebilirsiniz.</span>
+        </div>
+        <div class="satir-form">
+          <button type="button" class="dugme ikincil" id="kaynak-sina">Bağlantıyı Sına</button>
+          <button class="dugme">Kaydet ve Yeniden Başlat</button>
+        </div>
+        <div class="sina-sonuc" id="sina-sonuc"></div>
+      </form>
     </section>
   </div>
 
@@ -124,6 +253,47 @@
     {% endif %}
   </section>
 
+  <!-- İSTATİSTİKLER -->
+  <section class="kart">
+    <h2>İstatistikler — {{ gun_etiketi }}</h2>
+    <div class="ist-izgara">
+      <div class="ist-kutu"><b>{{ ozet.arac }}</b><span>araç geldi</span></div>
+      <div class="ist-kutu"><b>{{ ozet.insan }}</b><span>kişi geçti</span></div>
+      <div class="ist-kutu"><b>{{ en_yogun_saat or '—' }}</b><span>en yoğun saat</span></div>
+      <div class="ist-kutu"><b>{{ ozet.yakinlik }}</b><span>yakın park uyarısı</span></div>
+    </div>
+    {% if saatlik %}
+    <h3>Saatlere göre gelen araç</h3>
+    <div class="grafik">
+      {% for s in saatlik %}
+      <div class="grafik-sutun">
+        <span class="deger">{{ s.adet }}</span>
+        <div class="grafik-cubuk" style="height: {{ (s.adet / saatlik_en_yuksek * 100) | round | int }}%"
+             title="{{ s.saat }}:00 — {{ s.adet }} araç"></div>
+        <small>{{ s.saat }}</small>
+      </div>
+      {% endfor %}
+    </div>
+    <p class="not">Saatler Türkiye saatine göredir.</p>
+    {% else %}
+    <p class="bos">Bu gün için saatlik veri yok.</p>
+    {% endif %}
+    {% if son7|length > 1 %}
+    <h3>Son 7 gün — gelen araç</h3>
+    <div class="grafik">
+      {% for g in son7 %}
+      <div class="grafik-sutun">
+        <span class="deger">{{ g.adet }}</span>
+        <div class="grafik-cubuk {{ '' if g.bugun else 'soluk' }}"
+             style="height: {{ (g.adet / son7_en_yuksek * 100) | round | int }}%"
+             title="{{ g.etiket }} — {{ g.adet }} araç"></div>
+        <small>{{ g.etiket }}</small>
+      </div>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </section>
+
   <!-- ÇOK YAKIN PARK -->
   {% if yakinliklar %}
   <section class="kart">
@@ -136,7 +306,7 @@
         <td class="kirmizi-metin"><b>{{ y.mesafe }} m</b></td>
         <td>{{ y.esik }} m</td>
         <td>{% if y.foto %}<a href="/gorsel/{{ y.foto }}" target="_blank">
-          <img class="kucuk" src="/gorsel/{{ y.foto }}" alt="kanıt"></a>{% else %}—{% endif %}</td>
+          <img class="kucuk" src="/gorsel/{{ y.foto }}" alt="kanıt" loading="lazy"></a>{% else %}—{% endif %}</td>
       </tr>
       {% endfor %}
     </table>
@@ -150,7 +320,7 @@
     <div class="arac-izgara">
       {% for a in araclar %}
       <div class="arac-kart">
-        {% if a.foto %}<img src="/gorsel/{{ a.foto }}" alt="araç">
+        {% if a.foto %}<img src="/gorsel/{{ a.foto }}" alt="araç" loading="lazy">
         {% else %}<div class="foto-yok">görüntü yok</div>{% endif %}
         <div class="arac-alt">
           <span class="renk-nokta" style="background: {{ a.kod }}"></span>
@@ -186,6 +356,32 @@
     </form>
   </section>
 
+  <!-- TEKNOLOJİ -->
+  <details class="kart">
+    <summary>Bu sistem neyle çalışıyor?</summary>
+    <div class="kilavuz">
+      <div class="kilavuz-adim"><span class="kilavuz-no"><span>🧠</span></span>
+        <span class="kilavuz-metin"><b>Nesne tespiti: YOLOX (S / Tiny)</b>
+          <small>Her karede araç ve kişiyi bulan hazır yapay zeka modeli; eldeki
+          en isabetli sürüm otomatik seçilir. ONNX Runtime ile bilgisayarın
+          işlemcisinde çalışır, internet gerektirmez.</small></span></div>
+      <div class="kilavuz-adim"><span class="kilavuz-no"><span>🎥</span></span>
+        <span class="kilavuz-metin"><b>Görüntü işleme: OpenCV</b>
+          <small>Kameradan/videodan kareleri okur, kutuları çizer, kanıt fotoğraflarını kaydeder.</small></span></div>
+      <div class="kilavuz-adim"><span class="kilavuz-no"><span>🔢</span></span>
+        <span class="kilavuz-metin"><b>Takip: ByteTrack (supervision)</b>
+          <small>Aynı araca kareler arasında aynı numarayı verir — her araç bir kez sayılır.</small></span></div>
+      <div class="kilavuz-adim"><span class="kilavuz-no"><span>🎨</span></span>
+        <span class="kilavuz-metin"><b>Nesne eşleştirme: renk + desen parmak izi</b>
+          <small>Kütüphanedeki nesneler model eğitimi olmadan, renk histogramı ve
+          ORB desen özellikleriyle karşılaştırılır.</small></span></div>
+      <div class="kilavuz-adim"><span class="kilavuz-no"><span>🖥️</span></span>
+        <span class="kilavuz-metin"><b>Uygulama: FastAPI + SQLite + pywebview</b>
+          <small>Tek Python programı: web arayüzü, veritabanı (tek dosya) ve
+          masaüstü penceresi. Sunucu, bulut ya da abonelik yoktur; her şey bu bilgisayarda.</small></span></div>
+    </div>
+  </details>
+
   <p class="dipnot">
     Sayım ilkesi: her araç/kişi <b>bir kez</b> sayılır (takip numarasıyla).
     Araç görüntüden çıkıp tekrar girerse yeni numara alır ve yeniden sayılabilir —
@@ -211,7 +407,8 @@ setInterval(function () {
   }).catch(function () {});
 }, 1000);
 
-// Sayılar: 2 sn'de bir güncelle (sayfa yenilenmeden)
+// Sayılar: 2 sn'de bir güncelle; artışları köşe bildirimiyle duyur
+var oncekiSayilar = null;
 setInterval(function () {
   fetch("/canli?gun={{ gun }}").then(function (y) { return y.json(); }).then(function (v) {
     document.getElementById("sayi-arac").textContent = v.arac;
@@ -220,9 +417,22 @@ setInterval(function () {
     document.getElementById("sayi-canli-insan").textContent = v.canli_insan;
     document.getElementById("sayi-yakinlik").textContent = v.yakinlik;
     document.getElementById("durum-metni").textContent = v.durum;
+    if (oncekiSayilar && window.Bildirim) {
+      if (v.yakinlik > oncekiSayilar.yakinlik) {
+        Bildirim.goster("<b>⚠ Çok yakın park!</b> İki araç eşiğin altında — " +
+          "kanıt fotoğrafı kaydedildi.", "tehlike", 7000);
+        Bildirim.sesCal();
+      }
+      if (v.arac > oncekiSayilar.arac) {
+        Bildirim.goster("<b>+" + (v.arac - oncekiSayilar.arac) + " araç</b> sayıldı.", "iyi", 3500);
+      }
+    }
+    oncekiSayilar = v;
   }).catch(function () {});
 }, 2000);
 </script>
-<script src="/static/kalibrasyon.js"></script>
+<script src="/static/bildirim.js?v=8"></script>
+<script src="/static/kalibrasyon.js?v=8"></script>
+<script src="/static/kaynak.js?v=8"></script>
 </body>
 </html>

@@ -10,6 +10,7 @@ ve ekranda dürüstçe yazılıdır.
 from __future__ import annotations
 
 import os
+import sys
 import threading
 import time
 import uuid
@@ -68,9 +69,12 @@ class Analiz:
     def baslat(self) -> None:
         self._is.start()
 
-    def durdur(self) -> None:
+    def durdur(self) -> bool:
+        """Durdurma isteği gönderir; iş parçacığı gerçekten bittiyse True döner."""
         self._dur.set()
-        self._is.join(timeout=8)
+        if self._is.is_alive():
+            self._is.join(timeout=8)
+        return not self._is.is_alive()
 
     def onizleme(self) -> bytes | None:
         with self._kilit:
@@ -119,32 +123,44 @@ class Analiz:
             self.durum = "durdu"
 
     def _kaynagi_ac(self):
-        yol = self.ayarlar.kaynak
-        # Göreli yol proje klasörüne göre çözülür (çalışma dizininden bağımsız)
-        aday = self.ayarlar.kok / yol
-        kaynak = str(aday) if aday.exists() else yol
-        yakalayici = cv2.VideoCapture(kaynak, cv2.CAP_FFMPEG)
+        kaynak = self.ayarlar.kaynak_cozumle()
+        if isinstance(kaynak, int):
+            # Windows'ta varsayılan arka uç (MSMF) sık takılır; DirectShow daha sağlam
+            arka_uc = cv2.CAP_DSHOW if sys.platform == "win32" else cv2.CAP_ANY
+            yakalayici = cv2.VideoCapture(kaynak, arka_uc)
+        else:
+            # Zaman aşımı olmadan kopan RTSP bağlantısı read() içinde dakikalarca
+            # bloklanabilir; o zaman durdur() da bekler. 10 sn üst sınır koyuyoruz.
+            yakalayici = cv2.VideoCapture(
+                kaynak,
+                cv2.CAP_FFMPEG,
+                [cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000, cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000],
+            )
         if not yakalayici.isOpened():
             yakalayici.release()
             self.kaynak_hatasi = (
-                f"Görüntü kaynağı açılamadı: {yol}\n"
-                "RTSP adresini veya video dosyasının yolunu kontrol edin "
-                "(.env dosyasındaki KAYNAK satırı)."
+                f"Görüntü kaynağı açılamadı: {self.ayarlar.kaynak}\n"
+                "Kamera numarasını, RTSP adresini veya video dosyasının yolunu "
+                "Özet sayfasındaki 'Görüntü kaynağı' bölümünden kontrol edin."
             )
             return None
         return yakalayici
 
     def _kareleri_isle(self, yakalayici, baglanti) -> None:
         aralik = 1.0 / self.ayarlar.kare_fps
-        dosya_mi = not str(self.ayarlar.kaynak).lower().startswith("rtsp")
+        kaynak = self.ayarlar.kaynak_cozumle()
+        # Kamera (int), rtsp ve http akıştır; yalnız video DOSYASI bitince başa sarılır
+        dosya_mi = isinstance(kaynak, str) and not kaynak.lower().startswith(("rtsp", "http"))
         while not self._dur.is_set():
             baslangic = time.monotonic()
             tamam, kare = yakalayici.read()
             if not tamam:
                 if dosya_mi:
                     yakalayici.set(cv2.CAP_PROP_POS_FRAMES, 0)  # video biterse başa sar
+                    if self._dur.wait(0.1):  # bozuk dosyada boş dönüp CPU yakmasın
+                        return
                     continue
-                return  # RTSP koptu → yeniden bağlan
+                return  # kamera/RTSP koptu → yeniden bağlan
             self._kare_boyutu = (kare.shape[1], kare.shape[0])
             try:
                 self._kareyi_degerlendir(kare, baglanti)

@@ -11,7 +11,7 @@ veritabanı, kendi portu (8090). Birini kapatmak diğerini etkilemez.
 
 1. **Baslat-Mac.command** (veya Windows'ta **Baslat-Windows.bat**) dosyasına çift tıkla.
    İlk açılışta gerekli paketleri kendisi kurar (birkaç dakika).
-2. Tarayıcı `http://127.0.0.1:8090` adresinde açılır.
+2. Uygulama **kendi penceresinde** açılır (tarayıcı gerekmez). Pencereyi kapatmak sistemi durdurur. Gerekirse tarayıcıdan da ulaşılabilir: `http://127.0.0.1:8090`
 
 Kamera veya video kaynağını `.env` dosyasındaki **KAYNAK** satırı belirler:
 
@@ -31,7 +31,7 @@ KAYNAK=veri/ornek-otopark.mp4  # kayıtlı video (deneme)
 | **Ölçek** | Görüntüde uzunluğunu bildiğin bir mesafeyi çizip metre olarak girersin |
 | **Araç renkleri** | Günün renk dağılımı (beyaz, siyah, kırmızı…) |
 | **Kütüphane** | Kendi nesnelerini fotoğrafla tanıtırsın (örn. "servis aracımız") |
-| **Kare tarama** | Kameradan aldığın kareleri yükleyip tararsın; canlı sayaçlara dokunmaz |
+| **Kare tarama** | Fotoğraf ya da video yükleyip tararsın (videodan kareler otomatik alınır); canlı sayaçlara dokunmaz |
 
 ## Dürüst sınırlar
 
