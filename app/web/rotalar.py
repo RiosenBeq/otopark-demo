@@ -173,6 +173,7 @@ def ozet(
             "son7_en_yuksek": max((g["adet"] for g in son7), default=1) or 1,
             "esik": ayarlar.get("mesafe_esigi_m", "1.5").replace(".", ","),
             "esik_sayi": ayarlar.get("mesafe_esigi_m", "1.5"),
+            "hassasiyet": ayarlar.get("tespit_hassasiyeti", "0.35"),
             "metre_piksel": round(1 / olcek) if olcek > 0 else 0,
             "olcek_hazir": cizgi_hazir,
             "kalibrasyon_modu": kalibrasyon_modu,
@@ -205,6 +206,24 @@ def mesafe_esigi_kaydet(esik_m: str = Form(...), baglanti=Depends(baglanti_al)):
     except OlcekHatasi as hata:
         return RedirectResponse(f"/?hata={hata}", status_code=303)
     veritabani.ayar_yaz(baglanti, "mesafe_esigi_m", f"{deger:g}")
+    return RedirectResponse("/", status_code=303)
+
+
+@router.post("/ayarlar/hassasiyet")
+def hassasiyet_kaydet(hassasiyet: str = Form(...), baglanti=Depends(baglanti_al)):
+    """Tespit hassasiyeti: DÜŞÜK = daha çok araç yakalanır, yanlış tespit artar.
+
+    Kamera açısı, ışık ve araç uzaklığı sahadan sahaya değişir; tek bir sabit
+    eşik her otoparkta doğru olamaz. Değişiklik yeniden başlatma gerektirmez.
+    """
+    ham = (hassasiyet or "").strip().replace(",", ".")
+    try:
+        deger = float(ham)
+    except ValueError:
+        return RedirectResponse("/?hata=Hassasiyet+bir+sayı+olmalı", status_code=303)
+    if not 0.15 <= deger <= 0.90:
+        return RedirectResponse("/?hata=Hassasiyet+0,15+ile+0,90+arasında+olmalı", status_code=303)
+    veritabani.ayar_yaz(baglanti, "tespit_hassasiyeti", f"{deger:g}")
     return RedirectResponse("/", status_code=303)
 
 
@@ -325,8 +344,14 @@ def onizleme(istek: Request):
 
 
 @router.get("/canli")
-def canli_sayilar(istek: Request, gun: str = "", baglanti=Depends(baglanti_al)):
-    """Sayfa 2 sn'de bir bu uçtan güncellenir (tam yenileme yok)."""
+def canli_sayilar(istek: Request, gun: str = "", sonra: int = 0, baglanti=Depends(baglanti_al)):
+    """Sayfa 2 sn'de bir bu uçtan güncellenir (tam yenileme yok).
+
+    `sonra`: ekranın gördüğü son uyarı numarası. `olaylar` yalnızca ondan YENİ
+    olanları içerir — eskiden ekran günlük sayaç farkına bakıyordu: aynı
+    pencerede iki olay tek uyarıya iniyor, geçmiş gün görüntülenirken hiç uyarı
+    gelmiyor, "Sıfırla" basılınca uyarılar kayboluyordu.
+    """
     gun = gun or zaman.bugun()
     analiz = getattr(istek.app.state, "analiz", None)
     ozet = _gun_ozeti(baglanti, gun)
@@ -335,6 +360,9 @@ def canli_sayilar(istek: Request, gun: str = "", baglanti=Depends(baglanti_al)):
         "canli_arac": getattr(analiz, "canli_arac", 0),
         "canli_insan": getattr(analiz, "canli_insan", 0),
         "durum": getattr(analiz, "durum", "başlatılmadı"),
+        "son_hata": getattr(analiz, "son_hata", ""),
+        "olaylar": analiz.olaylar(sonra) if analiz is not None else [],
+        "son_olay_id": getattr(analiz, "son_olay_id", 0),
     }
 
 

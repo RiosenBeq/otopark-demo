@@ -13,7 +13,10 @@ services:
     build: .
     image: otopark-demopped
     ports:
-      - "8090:8090"
+      # YALNIZCA bu bilgisayara açık. "8090:8090" yapılırsa ağdaki herkes
+      # otoparkı canlı izleyebilir ve görüntü kaynağını değiştirebilir;
+      # PANEL_SIFRESI boşsa hiçbir engel yoktur.
+      - "127.0.0.1:8090:8090"
     volumes:
       - ./veri:/uygulama/veri          # veritabanı, görüntüler, nesne kütüphanesi
       - ./.env:/uygulama/.env:ro

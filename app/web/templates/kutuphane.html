@@ -98,7 +98,7 @@
         <button class="dugme kucuk">Fotoğrafları Yükle</button>
       </form>
       <form method="post" action="/kutuphane/{{ n.id }}/sil" class="satir-form"
-            onsubmit="return confirm('{{ n.ad }} ve fotoğrafları silinsin mi?')">
+            data-onay="{{ n.ad }} ve fotoğrafları silinsin mi?">
         <button class="dugme tehlike kucuk">Nesneyi Sil</button>
       </form>
     </section>
@@ -118,5 +118,11 @@
   </p>
 </main>
 <script src="/static/yukleme.js?v=8"></script>
+<script>
+document.addEventListener("submit", function (olay) {
+  var metin = olay.target.getAttribute && olay.target.getAttribute("data-onay");
+  if (metin && !window.confirm(metin)) olay.preventDefault();
+});
+</script>
 </body>
 </html>

@@ -19,6 +19,9 @@ VARSAYILAN_AYARLAR = {
     "mesafe_esigi_m": "1.5",
     # Aynı araç çifti için tekrar uyarı bastırma (saniye)
     "yakinlik_bekleme_s": "60",
+    # Tespit hassasiyeti: DÜŞÜK = daha çok araç yakalanır ama yanlış tespit
+    # artar. Ekrandan ayarlanır; koda gömülü eşik bırakılmaz.
+    "tespit_hassasiyeti": "0.35",
     # Referans çizgisinin görüntüdeki normalize uçları ve gerçek uzunluğu
     "referans_cizgi": "",
     "referans_metre": "",

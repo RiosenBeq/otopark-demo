@@ -146,10 +146,31 @@
       </form>
       <p class="not">Bu değeri siz belirlersiniz. İki araç arası mesafe bunun altına
         düşerse kayıt açılır ve kutular kırmızıya döner.</p>
+
+      <form method="post" action="/ayarlar/hassasiyet" class="dikey-form">
+        <label style="max-width: 460px">Tespit hassasiyeti
+          <span class="kaydirici">
+            <input type="range" name="hassasiyet" min="0.15" max="0.9" step="0.05"
+                   value="{{ hassasiyet }}" aria-label="tespit hassasiyeti">
+            <span class="kaydirici-deger">{{ hassasiyet }}</span>
+          </span>
+        </label>
+        <button class="dugme kucuk">Kaydet</button>
+      </form>
+      <p class="not"><b>Düşük</b> değer daha çok araç yakalar ama yanlış tespit artar;
+        <b>yüksek</b> değer yalnız çok net araçları sayar. Uzaktaki araçlar
+        görünmüyorsa önce bu değeri 0,05'lik adımlarla düşürün. 0,35 iyi bir
+        başlangıçtır.</p>
       <label class="satir-form onay-kutusu">
         <input type="checkbox" data-ses-anahtari>
         Yeni "çok yakın park" uyarısında sesli bildirim çal
       </label>
+      <label class="satir-form onay-kutusu">
+        <input type="checkbox" data-konusma-anahtari>
+        Uyarıyı sesli oku (Türkçe) — anons sistemi bağlanana kadar
+      </label>
+      <p class="not" id="ses-durumu"></p>
+      <p class="not hata-metni" id="son-hata" hidden></p>
 
       <h3>2. Mesafe kalibrasyonu
         <span class="ipucu" tabindex="0">?<span class="balon"><b>Kalibrasyon neden gerekli, hangi yöntemi seçmeliyim?</b>
@@ -455,7 +476,7 @@
          title="Seçili günün araç/kişi kayıtlarını Excel'de açılabilen CSV dosyası olarak indirir">CSV indir</a>
     </form>
     <form method="post" action="/sifirla" class="satir-form"
-          onsubmit="return confirm('{{ gun_etiketi }} gününün demo kayıtları silinsin mi?')">
+          data-onay="{{ gun_etiketi }} gününün demo kayıtları silinsin mi?">
       <input type="hidden" name="gun" value="{{ gun }}">
       <button class="dugme tehlike kucuk"
               title="Yalnızca seçili günün kayıtlarını siler — geri alınamaz">Bu günün kayıtlarını sıfırla</button>
@@ -515,30 +536,49 @@ setInterval(function () {
 }, 1000);
 
 // Sayılar: 2 sn'de bir güncelle; artışları köşe bildirimiyle duyur
-var oncekiSayilar = null;
+// Uyarılar SAYAÇ FARKINDAN değil sunucunun olay akışından gelir: aynı 2
+// saniyelik pencerede iki olay artık iki ayrı uyarı olur, geçmiş gün
+// görüntülenirken de canlı uyarı gelmeye devam eder.
+var sonOlayId = null;
 setInterval(function () {
-  fetch("/canli?gun={{ gun }}").then(function (y) { return y.json(); }).then(function (v) {
+  var adres = "/canli?gun={{ gun }}" + (sonOlayId === null ? "" : "&sonra=" + sonOlayId);
+  fetch(adres).then(function (y) { return y.json(); }).then(function (v) {
     document.getElementById("sayi-arac").textContent = v.arac;
     document.getElementById("sayi-insan").textContent = v.insan;
     document.getElementById("sayi-canli").textContent = v.canli_arac;
     document.getElementById("sayi-canli-insan").textContent = v.canli_insan;
     document.getElementById("sayi-yakinlik").textContent = v.yakinlik;
     document.getElementById("durum-metni").textContent = v.durum;
-    if (oncekiSayilar && window.Bildirim) {
-      if (v.yakinlik > oncekiSayilar.yakinlik) {
-        Bildirim.goster("<b>⚠ Çok yakın park!</b> İki araç eşiğin altında — " +
-          "kanıt fotoğrafı kaydedildi.", "tehlike", 7000);
-        Bildirim.sesCal();
-      }
-      if (v.arac > oncekiSayilar.arac) {
-        Bildirim.goster("<b>+" + (v.arac - oncekiSayilar.arac) + " araç</b> sayıldı.", "iyi", 3500);
-      }
+    var hataKutusu = document.getElementById("son-hata");
+    if (hataKutusu) {
+      hataKutusu.textContent = v.son_hata || "";
+      hataKutusu.hidden = !v.son_hata;
     }
-    oncekiSayilar = v;
+    // İlk turda geçmiş olaylar için uyarı verme (sayfa yeni açıldı)
+    if (sonOlayId !== null && window.Bildirim) {
+      (v.olaylar || []).forEach(function (olay) { Bildirim.yakinlikDuyur(olay); });
+    }
+    sonOlayId = v.son_olay_id || 0;
+    var sesKutusu = document.getElementById("ses-durumu");
+    if (sesKutusu && window.Bildirim) {
+      var durum = Bildirim.sesDurumu();
+      sesKutusu.textContent = durum === "beklemede"
+        ? "Ses beklemede — tarayıcı kuralı gereği sayfaya bir kez tıklayın."
+        : (durum === "yok" ? "Bu tarayıcı ses çalamıyor." : "");
+    }
   }).catch(function () {});
 }, 2000);
 </script>
-<script src="/static/bildirim.js?v=8"></script>
+<script>
+// Silme onayı TEK yerde. Onay metni data-onay özniteliğinden okunur; JS
+// kaynağına gömülmez. Aksi halde adında kesme işareti olan bir kayıt
+// ("Ahmet'in aracı") onay penceresini bozar ve SORULMADAN silinirdi.
+document.addEventListener("submit", function (olay) {
+  var metin = olay.target.getAttribute && olay.target.getAttribute("data-onay");
+  if (metin && !window.confirm(metin)) olay.preventDefault();
+});
+</script>
+<script src="/static/bildirim.js?v=9"></script>
 <script src="/static/kalibrasyon.js?v=8"></script>
 <script src="/static/kaynak.js?v=8"></script>
 </body>

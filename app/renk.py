@@ -130,3 +130,24 @@ def govde_bolgesi(kutu: tuple[float, float, float, float]) -> tuple[int, int, in
         int(x1 + genislik * 0.80),
         int(y1 + yukseklik * 0.80),
     )
+
+
+def baskin_renk(oylar: list[str]) -> str:
+    """Birkaç karedeki renk kararından BASKIN olanı seçer.
+
+    Neden gerekli: renk kararı tek kareye bakarak veriliyordu. Aynı beyaz araç
+    güneşte "beyaz", gölgede "gri" ya da "siyah" okunuyor; hangi karede
+    sayıldıysa o renk kalıcı olarak yazılıyordu. Birkaç oyun ortancası bu
+    salınımı büyük ölçüde giderir.
+
+    Baskın renk oyların yarısından fazlasını almalıdır; almazsa "belirsiz"
+    döner — uydurma renk üretilmez (docs: kanıt zayıfsa belirsiz).
+    """
+    gecerli = [o for o in oylar if o and o != BELIRSIZ]
+    if not gecerli:
+        return BELIRSIZ
+    sayim: dict[str, int] = {}
+    for oy in gecerli:
+        sayim[oy] = sayim.get(oy, 0) + 1
+    kazanan, adet = max(sayim.items(), key=lambda ikili: ikili[1])
+    return kazanan if adet * 2 > len(gecerli) else BELIRSIZ

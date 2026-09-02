@@ -95,3 +95,44 @@ PANEL_SIFRESI=buraya-sifrenizi-yazin
 Bu ürün **NextGen Detector** ailesindendir. Logo: `app/web/static/logo.svg`.
 Kardeş projeler: **DALSAN-ISG** (fabrika iş güvenliği) ve **LAFFOGATO**
 (kafe bar sayacı) — her biri kendi klasöründe, kendi portunda bağımsız çalışır.
+
+---
+
+## Sayım nasıl çalışıyor (özet)
+
+Bir araç, kadrajda göründüğü sürece TEK bir takip numarasıyla izlenir ve üç kez
+görüldükten sonra günlük sayaca girer. Tek karelik tespit kaçakları sayacı
+**sıfırlamaz** (azaltır): titreyen bir araç da sayılır.
+
+Uygulama gün içinde yeniden başlatılırsa takip numaraları baştan başlar; sistem
+o günkü en büyük numaranın üstünden devam eder, böylece yeni araçlar eski
+kayıtlarla çakışıp **sessizce kaybolmaz**.
+
+**Renk** tek kareye bakarak değil, birkaç karenin oyuyla belirlenir; oylar
+bölünürse "belirsiz" yazılır — uydurma renk üretilmez.
+
+Ekrandaki "şu an görünen" sayısı son birkaç karenin ortancasıdır: tek karelik
+bir kaçak sayacı titretmez.
+
+## Hassasiyet
+
+Özet sayfasındaki **Tespit hassasiyeti** kaydırıcısı, kaç güvenle bulunan
+nesnenin sayılacağını belirler. Düşük değer daha çok araç yakalar ama yanlış
+tespit artar. Uzaktaki araçlar görünmüyorsa 0,05'lik adımlarla düşürün.
+Değişiklik anında geçerlidir, yeniden başlatma gerekmez.
+
+## Uyarılar
+
+İki araç arasındaki mesafe eşiğin altına düştüğünde uyarı çıkar. Uyarı,
+**ardışık üç karede** doğrulanmadan yazılmaz: tek karelik bir kutu hatası
+kalıcı bir olay ve fotoğraf üretmez.
+
+Uyarılar sunucudaki olay akışından gelir; aynı anda oluşan iki olay iki ayrı
+uyarı olur. İsteğe bağlı **sesli bildirim** ve **Türkçe sesli okuma** vardır
+(tarayıcı kuralı gereği sayfaya bir kez tıklamak gerekir).
+
+## Günlük
+
+`veri/loglar/otopark.log` — sorun bildirirken bu dosyadaki satırları olduğu gibi
+kopyalayın. Analizde bir hata olursa özet sayfasında da kırmızı bir satır olarak
+görünür.

@@ -85,14 +85,23 @@ class Tespitci:
         cikti[:, 2:4] = np.exp(cikti[:, 2:4]) * adimlar
 
         skorlar = cikti[:, 4:5] * cikti[:, 5:]
-        sinif_idler = skorlar.argmax(1)
-        guvenler = skorlar[np.arange(len(skorlar)), sinif_idler]
+        bos = (np.empty((0, 4)), np.empty((0,)), np.empty((0,), dtype=object))
+
+        # SINIF SEÇİMİ: 80 COCO sınıfının TÜMÜ üzerinde argmax almak, bizim
+        # ilgilendiğimiz sınıfı ilgilenmediğimiz bir sınıf geçtiğinde tespiti
+        # TAMAMEN düşürüyordu. Otoparkta bir araç kolayca 0,34 "otomobil" /
+        # 0,36 "kamyonet olmayan bir sınıf" okunabilir. Artık yalnızca
+        # ilgilendiğimiz sınıflara bakılır (YOLOX'un class-aware yolu).
+        ilgi_idler = np.array(sorted(SINIF_ESLEME))
+        ilgi_skorlari = skorlar[:, ilgi_idler]
+        yerel = ilgi_skorlari.argmax(1)
+        sinif_idler = ilgi_idler[yerel]
+        guvenler = ilgi_skorlari[np.arange(len(ilgi_skorlari)), yerel]
 
         # Kişiler sahnede küçük/kısmen örtülü görünür; eşiği biraz daha cömert
         # tutmak kaçan kişileri azaltır (yanlış pozitifler NMS + takip ile elenir)
         sinif_esikleri = np.where(sinif_idler == 0, self.guven * KISI_ESIK_CARPANI, self.guven)
-        maske = (guvenler >= sinif_esikleri) & np.isin(sinif_idler, list(SINIF_ESLEME))
-        bos = (np.empty((0, 4)), np.empty((0,)), np.empty((0,), dtype=object))
+        maske = guvenler >= sinif_esikleri
         if not maske.any():
             return bos
 
