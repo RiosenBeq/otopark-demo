@@ -187,6 +187,10 @@ def ozet(
             "canli_arac": getattr(analiz, "canli_arac", 0),
             "canli_insan": getattr(analiz, "canli_insan", 0),
             "model_hatasi": getattr(analiz, "model_hatasi", None),
+            # Ekranda dosya adı değil kademe adı görünür (Hızlı / İsabetli)
+            "model_adi": ayarlar_modulu.gorunen_model_adi(
+                str(istek.app.state.ayarlar.model_dosyasi)
+            ),
             "kaynak_hatasi": getattr(analiz, "kaynak_hatasi", None),
             "kaynak": kaynak_gorunen(istek.app.state.ayarlar.kaynak),
             "kaynak_ham": istek.app.state.ayarlar.kaynak,

@@ -28,9 +28,13 @@ import supervision as sv  # noqa: E402
 
 from app import renk as renk_modulu  # noqa: E402
 from app import veritabani, zaman  # noqa: E402
-from app.ayarlar import Ayarlar  # noqa: E402
+from app.ayarlar import Ayarlar, gorunen_model_adi  # noqa: E402
 from app.mesafe import Arac, hesaplayici_kur, yakin_ciftler  # noqa: E402
-from app.tespit import ModelHatasi, Tespitci  # noqa: E402
+from app.tespit import (  # noqa: E402
+    YENIDEN_BASLATMA_ONERISI,
+    ModelHatasi,
+    Tespitci,
+)
 
 # Bir takip bu kadar kez görülmeden sayılmaz: tek karelik yanlış tespitler
 # günlük sayacı şişirmesin.
@@ -174,15 +178,30 @@ class Analiz:
         try:
             self._tespitci = Tespitci(self.ayarlar.model_dosyasi, self.ayarlar.cihaz)
         except ModelHatasi as hata:
-            self.model_hatasi = str(hata)
+            # Ekrana YALNIZCA sade metin çıkar (özet sayfasındaki kırmızı kutu).
+            # Tam yol ve özgün istisna metni tespit.py içinde günlüğe yazıldı.
+            self.model_hatasi = hata.mesaj
+            self._log.error("Tespit modeli açılamadı: %s", hata.teknik)
             self.durum = "model yok"
         except Exception as hata:  # noqa: BLE001 — iş parçacığı sessizce ölmesin
             # Dinamik eksenli model dışa aktarımı gibi durumlarda ValueError
             # gelir; yakalanmazsa analiz iş parçacığı ölür ve durum sonsuza dek
             # "başlatılıyor" kalırdı.
-            self.model_hatasi = f"Model yüklenemedi: {hata}"
+            #
+            # Ham istisna metni EKRANA BASILMAZ: içinde dosya yolu ve kütüphane
+            # adı geçer, kullanıcı hiçbirini kullanamaz. Ekranda diğer iki
+            # daldakiyle AYNI cümle görünür, ayrıntı günlüğe yazılır.
+            self.model_hatasi = (
+                f"{gorunen_model_adi(str(self.ayarlar.model_dosyasi))} açılamadı. "
+                f"{YENIDEN_BASLATMA_ONERISI}"
+            )
+            self._log.error(
+                "Tespit modeli açılamadı (%s): %s",
+                self.ayarlar.model_dosyasi,
+                hata,
+                exc_info=hata,
+            )
             self.durum = "model yok"
-            self._log.error(self.model_hatasi, exc_info=hata)
 
         bekleme = 1.0
         try:
